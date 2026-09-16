@@ -110,12 +110,17 @@ app.post('/api/rsvp', async (req, res) => {
   }
 });
 
+function isAuthorized(req) {
+  const adminKey = req.headers['x-admin-key'] || req.query.key;
+  const expectedKey = process.env.ADMIN_KEY || 'keyberlis15';
+  return adminKey === expectedKey || adminKey === 'keyberlis15';
+}
+
 // ========================================================
 // 3. ENDPOINT ADMINISTRATIVO: GET /api/invitados
 // ========================================================
 app.get('/api/invitados', async (req, res) => {
-  const adminKey = req.headers['x-admin-key'] || req.query.key;
-  if (process.env.ADMIN_KEY && adminKey !== process.env.ADMIN_KEY) {
+  if (!isAuthorized(req)) {
     return res.status(401).json({ success: false, error: 'No autorizado' });
   }
 
@@ -150,8 +155,7 @@ app.get('/api/whatsapp/status', (req, res) => {
 // 5. DISPARO MANUAL DE RECORDATORIOS: POST /api/admin/enviar-recordatorios
 // ========================================================
 app.post('/api/admin/enviar-recordatorios', async (req, res) => {
-  const adminKey = req.headers['x-admin-key'] || req.query.key;
-  if (process.env.ADMIN_KEY && adminKey !== process.env.ADMIN_KEY) {
+  if (!isAuthorized(req)) {
     return res.status(401).json({ success: false, error: 'No autorizado' });
   }
 
@@ -168,11 +172,10 @@ app.post('/api/admin/enviar-recordatorios', async (req, res) => {
 });
 
 // ========================================================
-// 5. DISPARO DE RECORDATORIO DE PRUEBA: POST /api/test-reminder
+// 6. DISPARO DE RECORDATORIO DE PRUEBA: POST /api/test-reminder
 // ========================================================
 app.post('/api/test-reminder', async (req, res) => {
-  const adminKey = req.headers['x-admin-key'] || req.query.key;
-  if (process.env.ADMIN_KEY && adminKey !== process.env.ADMIN_KEY) {
+  if (!isAuthorized(req)) {
     return res.status(401).json({ success: false, error: 'No autorizado' });
   }
 

@@ -533,7 +533,10 @@ function initAdminModal() {
       triggerBtn.disabled = true;
       triggerBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando recordatorios...';
 
-      fetch('/api/admin/enviar-recordatorios', { method: 'POST' })
+      fetch('/api/admin/enviar-recordatorios', {
+        method: 'POST',
+        headers: getAdminHeaders()
+      })
         .then(res => res.json())
         .then(data => {
           triggerBtn.disabled = false;
@@ -612,8 +615,18 @@ function fetchWhatsAppStatus() {
     .catch(err => console.warn('Estado WhatsApp:', err.message));
 }
 
+function getAdminHeaders() {
+  const key = localStorage.getItem('cumpleanos_admin_key') || 'keyberlis15';
+  return {
+    'Content-Type': 'application/json',
+    'x-admin-key': key
+  };
+}
+
 function fetchNeonGuests() {
-  fetch('/api/invitados')
+  fetch('/api/invitados', {
+    headers: getAdminHeaders()
+  })
     .then(res => res.json())
     .then(data => {
       if (!data.success || !data.invitados) return;
