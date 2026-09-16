@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mis 15 Años - Keyberlis</title>
+  <meta name="description" content="Invitación digital interactiva para la fiesta de 15 años de Keyberlis - Sábado 07 de Noviembre (21:00 a 6:00) en French 10551">
+  
+  <!-- Open Graph para vista previa al compartir por WhatsApp -->
+  <meta property="og:title" content="¡Estás invitado a los 15 de Keyberlis! 🪩✨">
+  <meta property="og:description" content="Sábado 07 de Noviembre de 21:00 a 6:00 hrs - French 10551. Confirma tu asistencia aquí.">
+  <meta property="og:image" content="assets/invitacion_keyberlis.jpg">
+  <meta property="og:type" content="website">
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Confetti JS -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+
+  <!-- Fondo de partículas de brillo y destellos -->
+  <canvas id="particles-canvas"></canvas>
+  <div class="ambient-glow"></div>
+
+  <!-- Contenedor de la Aplicación -->
+  <main class="app-container">
+
+    <!-- Barra Superior -->
+    <header class="top-bar">
+      <div class="brand-badge">
+        <span>🪩</span>
+        <span>LOS 15 DE KEYBERLIS</span>
+      </div>
+      <div class="top-actions">
+        <!-- Control de Música Ambiental -->
+        <button id="music-toggle" class="icon-btn" title="Activar/Pausar Música de Fiesta" aria-label="Música">
+          <i class="fa-solid fa-compact-disc"></i>
+        </button>
+        <!-- Compartir por WhatsApp -->
+        <button onclick="shareInvitation()" class="icon-btn" title="Compartir invitación por WhatsApp" aria-label="Compartir">
+          <i class="fa-brands fa-whatsapp"></i>
+        </button>
+        <!-- Panel Anfitrión -->
+        <button id="admin-btn" class="icon-btn" title="Configuración de Anfitrión y Lista de Invitados" aria-label="Configuración">
+          <i class="fa-solid fa-sliders"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Tarjeta Principal de la Invitación Gráfica -->
+    <section class="invitation-card-wrapper" id="invitation-poster">
+      <img id="main-invitation-img" src="assets/invitacion_keyberlis.jpg" alt="Invitación 15 Años Keyberlis" class="invitation-img">
+      <div class="card-overlay-actions">
+        <a id="download-invitation-btn" href="assets/invitacion_keyberlis.jpg" download="Invitacion_15_Keyberlis.jpg" class="overlay-btn">
+          <i class="fa-solid fa-download"></i> Guardar Foto
+        </a>
+      </div>
+    </section>
+
+    <!-- Selector de Versión del Diseño -->
+    <nav class="design-version-toggle">
+      <button type="button" class="toggle-pill active" data-version="keyberlis">Versión Keyberlis</button>
+      <button type="button" class="toggle-pill" data-version="original">Versión Original</button>
+    </nav>
+
+    <!-- Sección de Cuenta Regresiva -->
+    <section class="countdown-section">
+      <h2 class="section-title-script">Faltan tan solo...</h2>
+      <p class="section-subtitle">PARA EL SÁBADO 07 DE NOVIEMBRE • 21:00 HRS</p>
+      <div class="countdown-grid">
+        <div class="countdown-box">
+          <div class="countdown-val" id="count-days">00</div>
+          <div class="countdown-label">Días</div>
+        </div>
+        <div class="countdown-box">
+          <div class="countdown-val" id="count-hours">00</div>
+          <div class="countdown-label">Horas</div>
+        </div>
+        <div class="countdown-box">
+          <div class="countdown-val" id="count-mins">00</div>
+          <div class="countdown-label">Min</div>
+        </div>
+        <div class="countdown-box">
+          <div class="countdown-val" id="count-secs">00</div>
+          <div class="countdown-label">Seg</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Información y Detalles del Evento -->
+    <section class="event-details-card">
+      <!-- Fecha y Horario -->
+      <div class="detail-item">
+        <div class="detail-icon">
+          <i class="fa-regular fa-calendar-check"></i>
+        </div>
+        <div class="detail-info">
+          <h4>FECHA Y HORA</h4>
+          <p><strong>Sábado, 07 de Noviembre</strong></p>
+          <p>21:00 a 6:00 hrs (¡Hasta el amanecer! 🎉)</p>
+          <div class="action-buttons-row">
+            <a href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=15+A%C3%B1os+Keyberlis&dates=20261107T210000Z/20261108T060000Z&details=Fiesta+de+15+A%C3%B1os+de+Keyberlis+tem%C3%A1tica+Disco+Silver&location=French+10551" target="_blank" class="btn-secondary">
+              <i class="fa-solid fa-calendar-plus"></i> Agendar en Calendario
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ubicación -->
+      <div class="detail-item">
+        <div class="detail-icon">
+          <i class="fa-solid fa-location-dot"></i>
+        </div>
+        <div class="detail-info">
+          <h4>LUGAR DE LA FIESTA</h4>
+          <p class="dynamic-venue" style="font-size: 1.05rem; font-weight: 700; color: #fff;">French 10551</p>
+          <p>Te esperamos para celebrar esta noche inolvidable</p>
+          <div class="action-buttons-row">
+            <a href="https://www.google.com/maps/search/?api=1&query=French+10551" target="_blank" class="btn-secondary">
+              <i class="fa-solid fa-map-location-dot"></i> Ver en Google Maps
+            </a>
+            <a href="https://waze.com/ul?q=French+10551" target="_blank" class="btn-secondary">
+              <i class="fa-brands fa-waze"></i> Waze
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Código de Vestimenta -->
+      <div class="detail-item">
+        <div class="detail-icon">
+          <i class="fa-solid fa-vest-patches"></i>
+        </div>
+        <div class="detail-info">
+          <h4>DRESS CODE</h4>
+          <p><strong>Disco Silver Glam / Elegante</strong></p>
+          <p>Detalles brillantes, plateados o vestimenta formal elegante ✨</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FORMULARIO DE CONFIRMACIÓN DE ASISTENCIA (RSVP) -->
+    <section class="rsvp-section" id="rsvp-container">
+      <h2 class="section-title-script">Confirmación de Asistencia</h2>
+      <p class="section-subtitle">POR FAVOR CONFIRMA TU LUGAR</p>
+
+      <form id="rsvp-form">
+        <!-- Nombre -->
+        <div class="form-group">
+          <label for="guest-first-name">Nombre <span class="req">*</span></label>
+          <input type="text" id="guest-first-name" class="form-input" placeholder="Ej: Carlos" required autocomplete="given-name">
+        </div>
+
+        <!-- Apellido -->
+        <div class="form-group">
+          <label for="guest-last-name">Apellido <span class="req">*</span></label>
+          <input type="text" id="guest-last-name" class="form-input" placeholder="Ej: Gómez" required autocomplete="family-name">
+        </div>
+
+        <!-- Teléfono WhatsApp -->
+        <div class="form-group">
+          <label for="guest-phone">Teléfono WhatsApp <span class="req">*</span></label>
+          <input type="tel" id="guest-phone" class="form-input" placeholder="Ej: 11 2345 6789" required autocomplete="tel">
+        </div>
+
+        <!-- Confirmación de Asistencia (Sí / No) -->
+        <div class="form-group">
+          <label>¿Asistirás a la fiesta? <span class="req">*</span></label>
+          <div class="rsvp-options-grid">
+            <label class="rsvp-radio-card yes">
+              <input type="radio" name="attending" value="yes" checked>
+              <div class="rsvp-radio-content">
+                <span class="radio-icon">🎉</span>
+                <span class="radio-text">¡Sí, asistiré!</span>
+              </div>
+            </label>
+            <label class="rsvp-radio-card no">
+              <input type="radio" name="attending" value="no">
+              <div class="rsvp-radio-content">
+                <span class="radio-icon">😢</span>
+                <span class="radio-text">No podré ir</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Número de Acompañantes -->
+        <div class="form-group">
+          <label for="guest-plus-ones">¿Cuántos acompañantes vendrán contigo?</label>
+          <select id="guest-plus-ones" class="form-select">
+            <option value="0">Solo yo (Sin acompañantes)</option>
+            <option value="1">+1 Acompañante</option>
+            <option value="2">+2 Acompañantes</option>
+            <option value="3">+3 Acompañantes</option>
+            <option value="4">+4 Acompañantes</option>
+          </select>
+        </div>
+
+        <!-- Canción sugerida para la fiesta -->
+        <div class="form-group">
+          <label for="guest-song">Canción que no puede faltar en la fiesta (Opcional)</label>
+          <input type="text" id="guest-song" class="form-input" placeholder="Ej: Dua Lipa - Levitating">
+        </div>
+
+        <!-- Mensaje o Felicitación -->
+        <div class="form-group">
+          <label for="guest-message">Mensaje especial para Keyberlis (Opcional)</label>
+          <textarea id="guest-message" class="form-textarea" rows="3" placeholder="Escribe aquí tus mejores deseos para la quinceañera..."></textarea>
+        </div>
+
+        <!-- Botón de Confirmación por WhatsApp -->
+        <button type="submit" class="btn-whatsapp-confirm">
+          <i class="fa-brands fa-whatsapp fa-xl"></i>
+          <span>Confirmar por WhatsApp</span>
+        </button>
+      </form>
+
+      <!-- Boleto / Pase VIP Generado Automáticamente tras confirmar -->
+      <div id="ticket-container" class="ticket-container">
+        <div class="vip-ticket" id="vip-ticket-card">
+          <div class="ticket-header">
+            <div class="ticket-badge">PASE VIP DE INVITADO</div>
+            <div class="ticket-guest-name" id="ticket-guest-name">Nombre Invitado</div>
+          </div>
+          <div class="ticket-body">
+            <div class="ticket-meta">
+              <p><strong>Evento:</strong> Los 15 de <span class="dynamic-name">Keyberlis</span></p>
+              <p><strong>Fecha:</strong> Sábado, 07 de Noviembre</p>
+              <p><strong>Horario:</strong> 21:00 a 6:00 hrs</p>
+              <p><strong>Lugar:</strong> <span class="dynamic-venue">French 10551</span></p>
+              <p><strong>Acceso:</strong> <span id="ticket-companions">1 Persona</span></p>
+              <p><strong>Estado:</strong> Confirmado ✅</p>
+            </div>
+            <div class="ticket-qr" id="ticket-qr">
+              <!-- Código QR generado -->
+            </div>
+          </div>
+          <div class="ticket-actions">
+            <button type="button" onclick="downloadVIPTicket()" class="btn-secondary" style="width: 100%; justify-content: center; background: #fff; color: #000; font-weight: 700;">
+              <i class="fa-solid fa-file-arrow-down"></i> Descargar Pase VIP
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pie de Página -->
+    <footer class="footer-text">
+      <p>Esperamos contar con tu grata presencia 💖</p>
+      <p><span>✨ Temática Disco Glam Silver 15th • Keyberlis ✨</span></p>
+    </footer>
+
+  </main>
+
+  <!-- MODAL DE ADMINISTRACIÓN Y CONFIGURACIÓN DEL ANFITRIÓN -->
+  <div id="admin-modal" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-gear"></i> Panel del Anfitrión</h3>
+        <button id="close-modal-btn" class="close-btn" aria-label="Cerrar">&times;</button>
+      </div>
+
+      <!-- Resumen de Confirmados -->
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-val" id="stat-total-attending">0</div>
+          <div class="stat-title">Asisten</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="stat-total-companions">0</div>
+          <div class="stat-title">Acompañantes</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="stat-total-declined">0</div>
+          <div class="stat-title">No Asisten</div>
+        </div>
+      </div>
+
+      <!-- Tabla de Invitados -->
+      <h4 style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 8px; text-transform: uppercase;">Lista de Confirmaciones:</h4>
+      <div style="max-height: 180px; overflow-y: auto; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+        <table class="guest-list-table">
+          <thead>
+            <tr>
+              <th>Invitado</th>
+              <th>Estado</th>
+              <th>Pases</th>
+            </tr>
+          </thead>
+          <tbody id="guest-list-body">
+            <!-- Rellenado dinámicamente -->
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-bottom: 24px;">
+        <button type="button" id="export-csv-btn" class="btn-secondary" style="flex: 1; justify-content: center;">
+          <i class="fa-solid fa-file-excel"></i> Descargar Excel / CSV
+        </button>
+        <button type="button" id="clear-guests-btn" class="btn-secondary" style="background: rgba(239, 68, 68, 0.2); border-color: #f87171; color: #fca5a5;">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+
+      <!-- Configuración del Teléfono de WhatsApp y Datos -->
+      <h4 style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 10px; text-transform: uppercase; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 14px;">
+        Personalizar Datos:
+      </h4>
+      <form id="admin-config-form">
+        <div class="form-group">
+          <label for="cfg-phone">Tu Número de WhatsApp (con código de país):</label>
+          <input type="text" id="cfg-phone" class="form-input" placeholder="Ej: 5491123456789 o 521...">
+          <small style="color: #94a3b8; font-size: 0.72rem; display: block; margin-top: 4px;">
+            A este número llegarán las confirmaciones por WhatsApp automáticamente.
+          </small>
+        </div>
+
+        <div class="form-group">
+          <label for="cfg-name">Nombre de la Cumpleañera:</label>
+          <input type="text" id="cfg-name" class="form-input" value="Keyberlis">
+        </div>
+
+        <div class="form-group">
+          <label for="cfg-venue">Lugar del Evento:</label>
+          <input type="text" id="cfg-venue" class="form-input" value="French 10551">
+        </div>
+
+        <button type="submit" class="btn-whatsapp-confirm" style="background: linear-gradient(135deg, #e2e8f0, #94a3b8); color: #0f172a; padding: 12px; margin-top: 12px;">
+          <i class="fa-solid fa-floppy-disk"></i> Guardar Cambios
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Script principal -->
+  <script src="js/app.js"></script>
+</body>
+</html>

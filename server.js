@@ -1,0 +1,178 @@
+/**
+ * Servidor Backend Principal (Express + Neon PostgreSQL + WhatsApp + Cron)
+ * Proyecto: Invitacion 15 Anos Keyberlis
+ */
+
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+require('dotenv').config();
+
+const { initDB, query } = require('./db');
+const { normalizePhone } = require('./lib/phoneNormalizer');
+const { initWhatsApp, enviarMensaje, isReady, getLatestQR } = require('./whatsapp');
+const { initCron, ejecutarRecordatorios } = require('./cron');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middlewares
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Servir archivos estaticos del frontend (HTML, CSS, JS, imagenes)
+app.use(express.static(path.join(__dirname)));
+
+// ========================================================
+// 1. RUTA DE MANTENIMIENTO: GET /ping (UptimeRobot 24/7)
+// ========================================================
+app.get('/ping', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    service: 'cumpleanos-keyberlis',
+    whatsappReady: isReady(),
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ========================================================
+// 2. ENDPOINT DE REGISTRO: POST /api/rsvp
+// ========================================================
+app.post('/api/rsvp', async (req, res) => {
+  try {
+    const { nombre, telefono } = req.body;
+
+    // Validacion del nombre
+    if (!nombre || typeof nombre !== 'string' || nombre.trim().length < 2) {
+      return res.status(422).json({
+        success: false,
+        error: 'Por favor ingresa un nombre y apellido valido (minimo 2 caracteres).'
+      });
+    }
+
+    const cleanName = nombre.trim().slice(0, 120);
+
+    // Validacion y normalizacion del telefono (Argentina +54 9)
+    const phoneResult = normalizePhone(telefono);
+    if (!phoneResult.valid) {
+      return res.status(422).json({
+        success: false,
+        error: phoneResult.error
+      });
+    }
+
+    const normalizedPhone = phoneResult.formatted;
+
+    // Insercion o actualizacion idempotente en Neon PostgreSQL
+    const sql = [
+      'INSERT INTO invitados (nombre, telefono, verificado)',
+      'VALUES ($1, $2, false)',
+      'ON CONFLICT (telefono) DO UPDATE',
+      'SET nombre = EXCLUDED.nombre,',
+      '    fecha_registro = CURRENT_TIMESTAMP',
+      'RETURNING id, nombre, telefono, verificado, fecha_registro;'
+    ].join('\n');
+
+    const dbResult = await query(sql, [cleanName, normalizedPhone]);
+    const guest = dbResult.rows[0];
+
+    return res.status(201).json({
+      success: true,
+      message: 'Confirmacion registrada exitosamente',
+      data: guest
+    });
+
+  } catch (error) {
+    console.error('[RSVP Error]:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Error interno al registrar la confirmacion. Intente nuevamente.'
+    });
+  }
+});
+
+// ========================================================
+// 3. ENDPOINT ADMINISTRATIVO: GET /api/invitados
+// ========================================================
+app.get('/api/invitados', async (req, res) => {
+  const adminKey = req.headers['x-admin-key'] || req.query.key;
+  if (process.env.ADMIN_KEY && adminKey !== process.env.ADMIN_KEY) {
+    return res.status(401).json({ success: false, error: 'No autorizado' });
+  }
+
+  try {
+    const dbResult = await query('SELECT id, nombre, telefono, verificado, fecha_registro FROM invitados ORDER BY id DESC');
+    res.json({
+      success: true,
+      total: dbResult.rowCount,
+      invitados: dbResult.rows
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ========================================================
+// 4. ESTADO DE WHATSAPP: GET /api/whatsapp/status
+// ========================================================
+app.get('/api/whatsapp/status', (req, res) => {
+  res.json({
+    ready: isReady(),
+    hasQR: !!getLatestQR()
+  });
+});
+
+// ========================================================
+// 5. DISPARO DE RECORDATORIO DE PRUEBA: POST /api/test-reminder
+// ========================================================
+app.post('/api/test-reminder', async (req, res) => {
+  const adminKey = req.headers['x-admin-key'] || req.query.key;
+  if (process.env.ADMIN_KEY && adminKey !== process.env.ADMIN_KEY) {
+    return res.status(401).json({ success: false, error: 'No autorizado' });
+  }
+
+  const { telefono } = req.body;
+  if (!telefono) {
+    return res.status(400).json({ success: false, error: 'Debe especificar el campo telefono para la prueba' });
+  }
+
+  const phoneRes = normalizePhone(telefono);
+  if (!phoneRes.valid) {
+    return res.status(422).json({ success: false, error: phoneRes.error });
+  }
+
+  const alias = process.env.ALIAS_REGALO || 'key.2710';
+  const mensajePrueba = `¡Hola! Te recordamos que mañana es la gran fiesta de 15 años. Por favor, confirma tu asistencia. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: [${alias}]`;
+
+  const resultado = await enviarMensaje(phoneRes.formatted, mensajePrueba);
+  return res.json({
+    success: resultado.success,
+    telefono: phoneRes.formatted,
+    resultado
+  });
+});
+
+// Arrancar servidor principal
+app.listen(PORT, async () => {
+  console.log(`\n[+] [Servidor] Activo y escuchando en el puerto ${PORT}`);
+  console.log(`[+] [URL Web] http://localhost:${PORT}`);
+  console.log(`[+] [Uptime Endpoint] http://localhost:${PORT}/ping`);
+  
+  try {
+    await initDB();
+  } catch (err) {
+    console.warn('[!] [Aviso] Continuando sin base de datos activa hasta configurar DATABASE_URL.');
+  }
+
+  // Inicializar WhatsApp y Cron Job
+  try {
+    initWhatsApp();
+    initCron();
+  } catch (err) {
+    console.error('Error al inicializar servicios de fondo:', err.message);
+  }
+});
+
+module.exports = app;

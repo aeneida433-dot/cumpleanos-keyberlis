@@ -1,0 +1,27 @@
+{
+  "name": "cumpleanos-keyberlis-backend",
+  "version": "1.0.0",
+  "description": "Backend para invitacion digital de 15 anos de Keyberlis con Neon, Express y automatizacion de WhatsApp",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "invitacion",
+    "whatsapp",
+    "neon",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "node-cron": "^3.0.3",
+    "pg": "^8.13.1",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.26.0"
+  }
+}

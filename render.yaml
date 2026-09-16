@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: invitacion-keyberlis-15
+    env: node
+    plan: free
+    region: ohio
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /ping
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TIMEZONE
+        value: America/Argentina/Buenos_Aires
+      - key: ALIAS_REGALO
+        value: key.2710
+      - key: ADMIN_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
