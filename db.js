@@ -7,15 +7,21 @@ const { Pool } = require('pg');
 const fs = require('fs');
 
 if (fs.existsSync('/etc/secrets/.env')) {
-  require('dotenv').config({ path: '/etc/secrets/.env' });
+  require('dotenv').config({ path: '/etc/secrets/.env', override: true });
 } else {
-  require('dotenv').config();
+  require('dotenv').config({ override: true });
 }
+
+const NEON_CONNECTION_STRING = 'postgresql://neondb_owner:npg_fHcj1Z8QSxCh@ep-crimson-breeze-b5y4whea-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require';
+
+const connectionString = (process.env.DATABASE_URL && process.env.DATABASE_URL.trim() !== '')
+  ? process.env.DATABASE_URL
+  : NEON_CONNECTION_STRING;
 
 // Configuración de conexión con SSL para Neon
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+  connectionString: connectionString,
+  ssl: { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,

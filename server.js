@@ -9,9 +9,9 @@ const path = require('path');
 const fs = require('fs');
 
 if (fs.existsSync('/etc/secrets/.env')) {
-  require('dotenv').config({ path: '/etc/secrets/.env' });
+  require('dotenv').config({ path: '/etc/secrets/.env', override: true });
 } else {
-  require('dotenv').config();
+  require('dotenv').config({ override: true });
 }
 
 const { initDB, query } = require('./db');
