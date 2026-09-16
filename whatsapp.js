@@ -3,14 +3,16 @@
  * Proyecto: Invitacion 15 Anos Keyberlis
  */
 
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+const { Client, RemoteAuth } = require('whatsapp-web.js');
+const qrcodeTerminal = require('qrcode-terminal');
+const qrcode = require('qrcode');
 const path = require('path');
-
 const fs = require('fs');
+const PGStore = require('./lib/pgStore');
 
 let isClientReady = false;
 let latestQR = null;
+let latestQRDataURL = null;
 
 // Ubicar ejecutable de Chrome en cache local de Puppeteer si existe
 function getChromeExecutablePath() {
@@ -28,10 +30,17 @@ function getChromeExecutablePath() {
   return undefined;
 }
 
-// Configuracion optimizada de Puppeteer para Render y servidores Linux
+// Configuración de almacenamiento remoto en Neon PostgreSQL
+const store = new PGStore({
+  dataPath: path.join(__dirname, '.wwebjs_auth')
+});
+
+// Configuración optimizada de Puppeteer para Render y servidores Linux
 const client = new Client({
-  authStrategy: new LocalAuth({
-    dataPath: path.join(__dirname, '.wwebjs_auth')
+  authStrategy: new RemoteAuth({
+    store: store,
+    dataPath: path.join(__dirname, '.wwebjs_auth'),
+    backupSyncIntervalMs: 120000 // Respaldo a Neon cada 2 minutos
   }),
   webVersionCache: {
     type: 'remote',
@@ -53,13 +62,19 @@ const client = new Client({
   }
 });
 
-// Evento: Generacion de Codigo QR para vincular sesion
-client.on('qr', (qr) => {
+// Evento: Generación de Código QR para vincular sesión
+client.on('qr', async (qr) => {
   latestQR = qr;
+  try {
+    latestQRDataURL = await qrcode.toDataURL(qr, { margin: 2, scale: 6 });
+  } catch (err) {
+    console.error('Error al generar QR DataURL:', err.message);
+  }
+
   console.log('\n========================================================');
   console.log('📲 ESCANEA ESTE CODIGO QR CON TU WHATSAPP PARA VINCULAR:');
   console.log('========================================================\n');
-  qrcode.generate(qr, { small: true });
+  qrcodeTerminal.generate(qr, { small: true });
   console.log('\n👉 Abre WhatsApp en tu celular > Dispositivos vinculados > Vincular un dispositivo.\n');
 });
 
@@ -67,24 +82,28 @@ client.on('qr', (qr) => {
 client.on('authenticated', () => {
   console.log('🔐 [WhatsApp] Sesion autenticada correctamente.');
   latestQR = null;
+  latestQRDataURL = null;
 });
 
 // Evento: Fallo de autenticacion
 client.on('auth_failure', (msg) => {
   console.error('❌ [WhatsApp] Fallo de autenticacion:', msg);
   isClientReady = false;
+  latestQRDataURL = null;
 });
 
 // Evento: Cliente listo para enviar mensajes
 client.on('ready', () => {
   isClientReady = true;
   latestQR = null;
+  latestQRDataURL = null;
   console.log('✅ [WhatsApp] ¡Cliente listo y conectado 100% para enviar mensajes!');
 });
 
 // Evento: Desconexion
 client.on('disconnected', (reason) => {
   isClientReady = false;
+  latestQRDataURL = null;
   console.warn('⚠️ [WhatsApp] Cliente desconectado. Motivo:', reason);
 });
 
@@ -92,7 +111,7 @@ client.on('disconnected', (reason) => {
  * Inicializa el cliente de WhatsApp
  */
 function initWhatsApp() {
-  console.log('🤖 [WhatsApp] Iniciando cliente de automatizacion...');
+  console.log('🤖 [WhatsApp] Iniciando cliente de automatizacion con RemoteAuth en Neon...');
   client.initialize().catch((err) => {
     console.error('❌ [WhatsApp Error]:', err.message);
   });
@@ -136,10 +155,15 @@ function getLatestQR() {
   return latestQR;
 }
 
+function getLatestQRDataURL() {
+  return latestQRDataURL;
+}
+
 module.exports = {
   client,
   initWhatsApp,
   enviarMensaje,
   isReady,
-  getLatestQR
+  getLatestQR,
+  getLatestQRDataURL
 };

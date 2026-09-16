@@ -31,17 +31,26 @@ async function ejecutarRecordatorios() {
   }
 
   try {
-    const dbResult = await query('SELECT id, nombre, telefono, verificado FROM invitados ORDER BY id ASC');
+    const dbResult = await query('SELECT id, nombre, telefono, verificado FROM invitados WHERE recordatorio_enviado = false ORDER BY id ASC');
     const invitados = dbResult.rows;
 
-    console.log(`📋 [Cron] Se encontraron ${invitados.length} invitados registrados para notificar.`);
+    console.log(`📋 [Cron] Se encontraron ${invitados.length} invitados confirmados pendientes de recordatorio.`);
 
     let enviados = 0;
     let fallidos = 0;
 
     for (let i = 0; i < invitados.length; i++) {
       const inv = invitados[i];
-      const mensaje = `¡Hola ${inv.nombre}! Te recordamos que mañana es la gran fiesta de 15 años. Por favor, confirma tu asistencia. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: [${ALIAS}]`;
+      const mensaje = [
+        `¡Hola ${inv.nombre}! 🎉 Te recordamos que mañana es la gran fiesta de 15 años de Keyberlis. ¡Te esperamos con mucha alegría para festejar juntos hasta el amanecer! ✨`,
+        '',
+        `⏰ Horario: 21:00 a 6:00 hs`,
+        `📍 Lugar: French 10551`,
+        '',
+        `🎁 Si deseas hacernos un presente, te pedimos por favor que sea en efectivo a nuestro alias de Mercado Pago: [${ALIAS}]`,
+        '',
+        `¡Nos vemos mañana para celebrar esta noche mágica! 💖🪩`
+      ].join('\n');
 
       console.log(`\n📨 [${i + 1}/${invitados.length}] Enviando recordatorio a ${inv.nombre} (${inv.telefono})...`);
       
@@ -49,7 +58,8 @@ async function ejecutarRecordatorios() {
 
       if (resultado.success) {
         enviados++;
-        console.log(`✅ Entregado a ${inv.nombre}`);
+        await query('UPDATE invitados SET recordatorio_enviado = true, fecha_recordatorio = CURRENT_TIMESTAMP WHERE id = $1', [inv.id]);
+        console.log(`✅ Entregado y registrado en Neon para ${inv.nombre}`);
       } else {
         fallidos++;
         console.error(`❌ Fallo el envio a ${inv.nombre}: ${resultado.error}`);
@@ -64,7 +74,7 @@ async function ejecutarRecordatorios() {
     }
 
     console.log('\n========================================================');
-    console.log(`🏁 [Cron Job Finalizado] Total: ${invitados.length} | Enviados: ${enviados} | Fallidos: ${fallidos}`);
+    console.log(`🏁 [Cron Job Finalizado] Total pendientes procesados: ${invitados.length} | Enviados: ${enviados} | Fallidos: ${fallidos}`);
     console.log('========================================================\n');
 
     return { total: invitados.length, enviados, fallidos };

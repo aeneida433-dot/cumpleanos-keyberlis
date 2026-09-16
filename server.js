@@ -16,7 +16,7 @@ if (fs.existsSync('/etc/secrets/.env')) {
 
 const { initDB, query } = require('./db');
 const { normalizePhone } = require('./lib/phoneNormalizer');
-const { initWhatsApp, enviarMensaje, isReady, getLatestQR } = require('./whatsapp');
+const { initWhatsApp, enviarMensaje, isReady, getLatestQR, getLatestQRDataURL } = require('./whatsapp');
 const { initCron, ejecutarRecordatorios } = require('./cron');
 
 const app = express();
@@ -48,7 +48,17 @@ app.get('/ping', (req, res) => {
 // ========================================================
 app.post('/api/rsvp', async (req, res) => {
   try {
-    const { nombre, telefono } = req.body;
+    const { nombre, telefono, attending } = req.body;
+
+    // Regla de Negocio: Si el invitado marca que NO asistirá, no se crea nada en Neon
+    if (attending === false || attending === 'false') {
+      console.log(`ℹ️ [RSVP] Invitado indicó que no asistirá: "${nombre || 'Sin nombre'}". No se registra en Neon.`);
+      return res.status(200).json({
+        success: true,
+        saved: false,
+        message: 'Respuesta recibida. ¡Muchas gracias por avisarnos!'
+      });
+    }
 
     // Validacion del nombre
     if (!nombre || typeof nombre !== 'string' || nombre.trim().length < 2) {
@@ -71,14 +81,14 @@ app.post('/api/rsvp', async (req, res) => {
 
     const normalizedPhone = phoneResult.formatted;
 
-    // Insercion o actualizacion idempotente en Neon PostgreSQL
+    // Insercion o actualizacion idempotente en Neon PostgreSQL (solo confirmados "SÍ")
     const sql = [
-      'INSERT INTO invitados (nombre, telefono, verificado)',
-      'VALUES ($1, $2, false)',
+      'INSERT INTO invitados (nombre, telefono, verificado, recordatorio_enviado)',
+      'VALUES ($1, $2, false, false)',
       'ON CONFLICT (telefono) DO UPDATE',
       'SET nombre = EXCLUDED.nombre,',
       '    fecha_registro = CURRENT_TIMESTAMP',
-      'RETURNING id, nombre, telefono, verificado, fecha_registro;'
+      'RETURNING id, nombre, telefono, verificado, recordatorio_enviado, fecha_registro;'
     ].join('\n');
 
     const dbResult = await query(sql, [cleanName, normalizedPhone]);
@@ -86,6 +96,7 @@ app.post('/api/rsvp', async (req, res) => {
 
     return res.status(201).json({
       success: true,
+      saved: true,
       message: 'Confirmacion registrada exitosamente',
       data: guest
     });
@@ -109,7 +120,11 @@ app.get('/api/invitados', async (req, res) => {
   }
 
   try {
-    const dbResult = await query('SELECT id, nombre, telefono, verificado, fecha_registro FROM invitados ORDER BY id DESC');
+    const dbResult = await query(`
+      SELECT id, nombre, telefono, verificado, recordatorio_enviado, fecha_recordatorio, fecha_registro 
+      FROM invitados 
+      ORDER BY id DESC
+    `);
     res.json({
       success: true,
       total: dbResult.rowCount,
@@ -121,13 +136,35 @@ app.get('/api/invitados', async (req, res) => {
 });
 
 // ========================================================
-// 4. ESTADO DE WHATSAPP: GET /api/whatsapp/status
+// 4. ESTADO DE WHATSAPP CON QR: GET /api/whatsapp/status
 // ========================================================
 app.get('/api/whatsapp/status', (req, res) => {
   res.json({
     ready: isReady(),
-    hasQR: !!getLatestQR()
+    hasQR: !!getLatestQR(),
+    qrDataURL: getLatestQRDataURL()
   });
+});
+
+// ========================================================
+// 5. DISPARO MANUAL DE RECORDATORIOS: POST /api/admin/enviar-recordatorios
+// ========================================================
+app.post('/api/admin/enviar-recordatorios', async (req, res) => {
+  const adminKey = req.headers['x-admin-key'] || req.query.key;
+  if (process.env.ADMIN_KEY && adminKey !== process.env.ADMIN_KEY) {
+    return res.status(401).json({ success: false, error: 'No autorizado' });
+  }
+
+  try {
+    const resultado = await ejecutarRecordatorios();
+    res.json({
+      success: true,
+      message: 'Proceso de recordatorios finalizado',
+      resultado
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // ========================================================

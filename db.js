@@ -61,16 +61,30 @@ async function initDB() {
       nombre VARCHAR(120) NOT NULL,
       telefono VARCHAR(30) NOT NULL UNIQUE,
       verificado BOOLEAN DEFAULT FALSE,
+      recordatorio_enviado BOOLEAN DEFAULT FALSE,
+      fecha_recordatorio TIMESTAMP WITH TIME ZONE,
       fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Migraciones seguras si la tabla ya existía
+    ALTER TABLE invitados ADD COLUMN IF NOT EXISTS recordatorio_enviado BOOLEAN DEFAULT FALSE;
+    ALTER TABLE invitados ADD COLUMN IF NOT EXISTS fecha_recordatorio TIMESTAMP WITH TIME ZONE;
+
     CREATE INDEX IF NOT EXISTS idx_invitados_telefono ON invitados(telefono);
     CREATE INDEX IF NOT EXISTS idx_invitados_verificado ON invitados(verificado);
+    CREATE INDEX IF NOT EXISTS idx_invitados_recordatorio ON invitados(recordatorio_enviado);
+
+    -- Tabla para persistencia de sesión de WhatsApp (RemoteAuth en Neon)
+    CREATE TABLE IF NOT EXISTS whatsapp_session (
+      id VARCHAR(100) PRIMARY KEY,
+      data BYTEA NOT NULL,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
   `;
 
   try {
     await query(ddl);
-    console.log('✅ [DB] Tabla "invitados" e índices verificados/inicializados en Neon con éxito.');
+    console.log('✅ [DB] Esquema e índices verificados/migrados en Neon con éxito.');
   } catch (err) {
     console.error('❌ [DB Error] Error al inicializar el esquema en Neon:', err.message);
     throw err;

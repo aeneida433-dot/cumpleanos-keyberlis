@@ -257,7 +257,7 @@ function initRSVPForm() {
     const phoneInput = document.getElementById("guest-phone");
     const phone = phoneInput ? phoneInput.value.trim() : "";
     const attendingRadio = document.querySelector('input[name="attending"]:checked');
-    const plusOnes = document.getElementById("guest-plus-ones").value;
+    const plusOnes = document.getElementById("guest-plus-ones") ? document.getElementById("guest-plus-ones").value : "0";
     const message = document.getElementById("guest-message").value.trim();
     const song = document.getElementById("guest-song").value.trim();
 
@@ -283,45 +283,47 @@ function initRSVPForm() {
       name: `${firstName} ${lastName}`,
       phone: phone,
       attending: attending,
-      plusOnes: attending ? plusOnes : "0",
+      plusOnes: "0",
       song: song || "N/A",
       message: message || "¡Muchas felicidades!",
       date: new Date().toLocaleDateString("es-ES")
     };
 
-    // Registrar en backend Neon PostgreSQL
-    fetch('/api/rsvp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nombre: guestData.name,
-        telefono: phone
-      })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        console.log('✅ [Neon DB] Registrado exitosamente:', data.data);
-      } else {
-        console.warn('⚠️ [Neon DB]:', data.error);
-      }
-    })
-    .catch(err => {
-      console.warn('ℹ️ Servidor en segundo plano o modo local:', err.message);
-    });
-
-    guestList.push(guestData);
-    localStorage.setItem("cumpleanos_guests", JSON.stringify(guestList));
-    renderGuestList();
-
-    sendWhatsAppConfirmation(guestData);
-
+    // Si confirma que SÍ asistirá, se registra en Neon PostgreSQL.
+    // Si marca que NO asistirá, NO se registra nada en la base de datos (lista 100% limpia).
     if (attending) {
+      fetch('/api/rsvp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: guestData.name,
+          telefono: phone,
+          attending: true
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          console.log('✅ [Neon DB] Registrado exitosamente:', data.data);
+        } else {
+          console.warn('⚠️ [Neon DB]:', data.error);
+        }
+      })
+      .catch(err => {
+        console.warn('ℹ️ Servidor en segundo plano o modo local:', err.message);
+      });
+
+      guestList.push(guestData);
+      localStorage.setItem("cumpleanos_guests", JSON.stringify(guestList));
+      renderGuestList();
+
       showVIPTicket(guestData);
       triggerConfetti();
     } else {
-      showToast("💌 ¡Gracias por responder!");
+      showToast("💌 ¡Muchas gracias por avisarnos! Lamentamos que no puedas venir.");
     }
+
+    sendWhatsAppConfirmation(guestData);
   });
 }
 
@@ -334,7 +336,7 @@ function sendWhatsAppConfirmation(data) {
   waText += `🎟 *Confirmación:* ${data.attending ? "¡SÍ ASISTIRÉ! 🎉🪩" : "NO PODRÉ ASISTIR 😢"}\n`;
 
   if (data.attending) {
-    waText += `👥 *Acompañantes:* ${data.plusOnes}\n`;
+    waText += `🎫 *Pase:* Individual (1 persona)\n`;
     if (data.song && data.song !== "N/A") {
       waText += `🎵 *Canción sugerida:* ${data.song}\n`;
     }
@@ -347,7 +349,11 @@ function sendWhatsAppConfirmation(data) {
   waText += `📍 *Lugar:* ${config.venueName}\n`;
   waText += `🗓 *Fecha:* Sábado, 07 de Noviembre\n`;
   waText += `⏰ *Horario:* 21:00 a 6:00 hrs\n\n`;
-  waText += `¡Nos vemos para celebrar hasta el amanecer! ✨🪩`;
+  if (data.attending) {
+    waText += `¡Nos vemos para celebrar hasta el amanecer! ✨🪩`;
+  } else {
+    waText += `¡Te deseo un cumpleaños inolvidable! 💖✨`;
+  }
 
   const encoded = encodeURIComponent(waText);
   let url = "";
@@ -374,8 +380,7 @@ function showVIPTicket(guest) {
 
   if (ticketName) ticketName.innerText = guest.name;
   if (ticketCompanions) {
-    const p = parseInt(guest.plusOnes) || 0;
-    ticketCompanions.innerText = p === 0 ? "1 Persona (Individual)" : `${p + 1} Personas (Titular + ${p})`;
+    ticketCompanions.innerText = "1 Persona (Acceso Individual)";
   }
 
   if (ticketQr) {
@@ -467,30 +472,86 @@ window.downloadVIPTicket = function() {
 /* ========================================================
    7. PANEL DE ADMINISTRACIÓN / CONFIGURACIÓN DE ANFITRIÓN
    ======================================================== */
+/* ========================================================
+   7. PANEL DE ADMINISTRACIÓN / CONFIGURACIÓN DE ANFITRIÓN
+   ======================================================== */
+let adminPollInterval = null;
+let neonGuestsList = [];
+
 function initAdminModal() {
   const openBtn = document.getElementById("admin-btn");
   const modal = document.getElementById("admin-modal");
   const closeBtn = document.getElementById("close-modal-btn");
   const form = document.getElementById("admin-config-form");
   const exportBtn = document.getElementById("export-csv-btn");
-  const clearBtn = document.getElementById("clear-guests-btn");
+  const refreshBtn = document.getElementById("refresh-admin-btn");
+  const triggerBtn = document.getElementById("trigger-reminders-btn");
 
   if (!openBtn || !modal) return;
 
   openBtn.addEventListener("click", () => {
     modal.style.display = "flex";
     populateAdminForm();
+    fetchWhatsAppStatus();
+    fetchNeonGuests();
+
+    if (adminPollInterval) clearInterval(adminPollInterval);
+    adminPollInterval = setInterval(fetchWhatsAppStatus, 5000);
   });
 
   if (closeBtn) {
     closeBtn.addEventListener("click", () => {
       modal.style.display = "none";
+      if (adminPollInterval) {
+        clearInterval(adminPollInterval);
+        adminPollInterval = null;
+      }
     });
   }
 
   window.addEventListener("click", (e) => {
-    if (e.target === modal) modal.style.display = "none";
+    if (e.target === modal) {
+      modal.style.display = "none";
+      if (adminPollInterval) {
+        clearInterval(adminPollInterval);
+        adminPollInterval = null;
+      }
+    }
   });
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", () => {
+      fetchWhatsAppStatus();
+      fetchNeonGuests();
+      showToast("🔄 Datos actualizados");
+    });
+  }
+
+  if (triggerBtn) {
+    triggerBtn.addEventListener("click", () => {
+      if (!confirm("¿Deseas enviar el recordatorio de WhatsApp a todos los confirmados pendientes en Neon?")) return;
+      triggerBtn.disabled = true;
+      triggerBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando recordatorios...';
+
+      fetch('/api/admin/enviar-recordatorios', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+          triggerBtn.disabled = false;
+          triggerBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>Enviar Recordatorios a Pendientes</span>';
+          if (data.success && data.resultado) {
+            showToast(`🏁 Envíos finalizados: ${data.resultado.enviados} enviados, ${data.resultado.fallidos} fallidos`);
+          } else {
+            showToast(`⚠️ ${data.error || 'No se pudo completar el envío'}`);
+          }
+          fetchNeonGuests();
+        })
+        .catch(err => {
+          triggerBtn.disabled = false;
+          triggerBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>Enviar Recordatorios a Pendientes</span>';
+          showToast(`❌ Error: ${err.message}`);
+        });
+    });
+  }
 
   if (form) {
     form.addEventListener("submit", (e) => {
@@ -503,6 +564,10 @@ function initAdminModal() {
       localStorage.setItem("cumpleanos_config", JSON.stringify(config));
       updateUIWithConfig();
       modal.style.display = "none";
+      if (adminPollInterval) {
+        clearInterval(adminPollInterval);
+        adminPollInterval = null;
+      }
       showToast("💾 Configuración guardada");
     });
   }
@@ -510,17 +575,86 @@ function initAdminModal() {
   if (exportBtn) {
     exportBtn.addEventListener("click", exportGuestListToCSV);
   }
+}
 
-  if (clearBtn) {
-    clearBtn.addEventListener("click", () => {
-      if (confirm("¿Estás seguro de que deseas borrar todos los registros de confirmación?")) {
-        guestList = [];
-        localStorage.removeItem("cumpleanos_guests");
-        renderGuestList();
-        showToast("🗑 Lista de invitados reiniciada");
+function fetchWhatsAppStatus() {
+  fetch('/api/whatsapp/status')
+    .then(res => res.json())
+    .then(data => {
+      const badge = document.getElementById("wa-status-badge");
+      const qrContainer = document.getElementById("wa-qr-container");
+      const qrImg = document.getElementById("wa-qr-img");
+      if (!badge) return;
+
+      if (data.ready) {
+        badge.innerHTML = '🟢 Conectado y Listo';
+        badge.style.background = 'rgba(34, 197, 94, 0.2)';
+        badge.style.color = '#4ade80';
+        badge.style.borderColor = '#22c55e';
+        if (qrContainer) qrContainer.style.display = 'none';
+      } else if (data.qrDataURL) {
+        badge.innerHTML = '🟡 Escanear Código QR';
+        badge.style.background = 'rgba(234, 179, 8, 0.2)';
+        badge.style.color = '#facc15';
+        badge.style.borderColor = '#eab308';
+        if (qrContainer) {
+          qrContainer.style.display = 'block';
+          if (qrImg) qrImg.src = data.qrDataURL;
+        }
+      } else {
+        badge.innerHTML = '⏳ Esperando QR...';
+        badge.style.background = 'rgba(148, 163, 184, 0.2)';
+        badge.style.color = '#cbd5e1';
+        badge.style.borderColor = '#94a3b8';
+        if (qrContainer) qrContainer.style.display = 'none';
       }
-    });
-  }
+    })
+    .catch(err => console.warn('Estado WhatsApp:', err.message));
+}
+
+function fetchNeonGuests() {
+  fetch('/api/invitados')
+    .then(res => res.json())
+    .then(data => {
+      if (!data.success || !data.invitados) return;
+      neonGuestsList = data.invitados;
+      const totalAttendingEl = document.getElementById("stat-total-attending");
+      const totalRemindedEl = document.getElementById("stat-total-reminded");
+      const totalPendingEl = document.getElementById("stat-total-pending");
+      const tbody = document.getElementById("guest-list-body");
+
+      let remindedCount = 0;
+      neonGuestsList.forEach(g => {
+        if (g.recordatorio_enviado) remindedCount++;
+      });
+      let pendingCount = neonGuestsList.length - remindedCount;
+
+      if (totalAttendingEl) totalAttendingEl.innerText = neonGuestsList.length;
+      if (totalRemindedEl) totalRemindedEl.innerText = remindedCount;
+      if (totalPendingEl) totalPendingEl.innerText = pendingCount;
+
+      if (tbody) {
+        tbody.innerHTML = "";
+        if (neonGuestsList.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 12px;">No hay confirmados aún en Neon</td></tr>';
+        } else {
+          neonGuestsList.forEach(g => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td><strong>${g.nombre}</strong></td>
+              <td style="font-size: 0.8rem; color: #cbd5e1;">${g.telefono}</td>
+              <td>
+                <span class="${g.recordatorio_enviado ? 'badge-attending' : 'badge-declined'}">
+                  ${g.recordatorio_enviado ? '✅ Enviado' : '⏳ Pendiente'}
+                </span>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+      }
+    })
+    .catch(err => console.warn('Invitados Neon:', err.message));
 }
 
 function populateAdminForm() {
@@ -545,62 +679,26 @@ function updateUIWithConfig() {
 }
 
 function renderGuestList() {
-  const tbody = document.getElementById("guest-list-body");
-  const totalAttendingEl = document.getElementById("stat-total-attending");
-  const totalCompanionsEl = document.getElementById("stat-total-companions");
-  const totalDeclinedEl = document.getElementById("stat-total-declined");
-
-  let attendingCount = 0;
-  let companionsCount = 0;
-  let declinedCount = 0;
-
-  if (tbody) tbody.innerHTML = "";
-
-  guestList.forEach((g) => {
-    if (g.attending) {
-      attendingCount++;
-      companionsCount += parseInt(g.plusOnes) || 0;
-    } else {
-      declinedCount++;
-    }
-
-    if (tbody) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><strong>${g.name}</strong></td>
-        <td>
-          <span class="${g.attending ? "badge-attending" : "badge-declined"}">
-            ${g.attending ? "Sí Asiste" : "No Asiste"}
-          </span>
-        </td>
-        <td>${g.attending ? (g.plusOnes > 0 ? "+" + g.plusOnes : "Solo") : "-"}</td>
-      `;
-      tbody.appendChild(tr);
-    }
-  });
-
-  if (totalAttendingEl) totalAttendingEl.innerText = attendingCount;
-  if (totalCompanionsEl) totalCompanionsEl.innerText = companionsCount;
-  if (totalDeclinedEl) totalDeclinedEl.innerText = declinedCount;
+  fetchNeonGuests();
 }
 
 function exportGuestListToCSV() {
-  if (guestList.length === 0) {
+  const listToExport = neonGuestsList.length > 0 ? neonGuestsList : guestList;
+  if (listToExport.length === 0) {
     showToast("⚠️ No hay invitados confirmados aún");
     return;
   }
 
   let csvContent = "data:text/csv;charset=utf-8,";
-  csvContent += "Nombre Completo,Estado Asistencia,Acompanantes,Cancion,Mensaje,Fecha Registro\r\n";
+  csvContent += "Nombre Completo,Telefono,Recordatorio Enviado,Fecha Recordatorio,Fecha Registro\r\n";
 
-  guestList.forEach((g) => {
+  listToExport.forEach((g) => {
     const row = [
-      `"${g.name}"`,
-      g.attending ? "Asiste" : "No Asiste",
-      g.plusOnes,
-      `"${(g.song || "").replace(/"/g, '""')}"`,
-      `"${(g.message || "").replace(/"/g, '""')}"`,
-      g.date
+      `"${g.nombre || g.name}"`,
+      `"${g.telefono || g.phone}"`,
+      g.recordatorio_enviado ? "Enviado" : "Pendiente",
+      g.fecha_recordatorio || "N/A",
+      g.fecha_registro || g.date || "N/A"
     ];
     csvContent += row.join(",") + "\r\n";
   });
@@ -608,11 +706,11 @@ function exportGuestListToCSV() {
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement("a");
   link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `Confirmaciones_${config.birthdayGirl}_15.csv`);
+  link.setAttribute("download", `Confirmados_Neon_${config.birthdayGirl}_15.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  showToast("📊 Lista descargada en CSV / Excel");
+  showToast("📊 Lista de Neon descargada en CSV");
 }
 
 /* ========================================================
