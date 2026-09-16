@@ -6,7 +6,13 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-require('dotenv').config();
+const fs = require('fs');
+
+if (fs.existsSync('/etc/secrets/.env')) {
+  require('dotenv').config({ path: '/etc/secrets/.env' });
+} else {
+  require('dotenv').config();
+}
 
 const { initDB, query } = require('./db');
 const { normalizePhone } = require('./lib/phoneNormalizer');

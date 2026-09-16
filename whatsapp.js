@@ -7,16 +7,39 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const path = require('path');
 
+const fs = require('fs');
+
 let isClientReady = false;
 let latestQR = null;
+
+// Ubicar ejecutable de Chrome en cache local de Puppeteer si existe
+function getChromeExecutablePath() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+  const localCache = path.join(__dirname, '.cache', 'puppeteer', 'chrome');
+  if (fs.existsSync(localCache)) {
+    const versions = fs.readdirSync(localCache);
+    for (const v of versions) {
+      const p = path.join(localCache, v, 'chrome-linux64', 'chrome');
+      if (fs.existsSync(p)) return p;
+    }
+  }
+  return undefined;
+}
 
 // Configuracion optimizada de Puppeteer para Render y servidores Linux
 const client = new Client({
   authStrategy: new LocalAuth({
     dataPath: path.join(__dirname, '.wwebjs_auth')
   }),
+  webVersionCache: {
+    type: 'remote',
+    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1047687307-alpha.html'
+  },
   puppeteer: {
     headless: true,
+    executablePath: getChromeExecutablePath(),
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',

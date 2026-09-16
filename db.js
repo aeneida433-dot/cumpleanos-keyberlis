@@ -1,10 +1,16 @@
-﻿/**
+/**
  * Módulo de Conexión a Base de Datos Neon PostgreSQL
  * Proyecto: Invitación 15 Años Keyberlis
  */
 
 const { Pool } = require('pg');
-require('dotenv').config();
+const fs = require('fs');
+
+if (fs.existsSync('/etc/secrets/.env')) {
+  require('dotenv').config({ path: '/etc/secrets/.env' });
+} else {
+  require('dotenv').config();
+}
 
 // Configuración de conexión con SSL para Neon
 const pool = new Pool({
