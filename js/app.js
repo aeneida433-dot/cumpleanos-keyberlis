@@ -483,6 +483,104 @@ window.downloadVIPTicket = function() {
    ======================================================== */
 let adminPollInterval = null;
 let neonGuestsList = [];
+let appSocket = null;
+
+function initAdminSocket() {
+  const key = sessionStorage.getItem("cumpleanos_admin_key");
+  if (key !== "key27102011") {
+    console.warn("⚠️ [Socket] Conexión de socket restringida: requiere clave key27102011");
+    return;
+  }
+
+  if (appSocket) return;
+
+  if (typeof io === 'undefined') {
+    console.warn("⚠️ [Socket] Socket.io no cargado en el navegador.");
+    return;
+  }
+
+  appSocket = io(API_BASE, {
+    transports: ['websocket', 'polling']
+  });
+
+  appSocket.on('connect', () => {
+    console.log('⚡ [Socket] Conectado en tiempo real al servidor');
+  });
+
+  appSocket.on('whatsapp-qr', (data) => {
+    const currentKey = sessionStorage.getItem("cumpleanos_admin_key");
+    if (currentKey !== "key27102011") return;
+
+    const qrContainer = document.getElementById("codigo-qr-whatsapp") || document.getElementById("wa-qr-container");
+    let qrImg = document.getElementById("wa-qr-img");
+    const badge = document.getElementById("wa-status-badge");
+
+    if (qrContainer) {
+      qrContainer.style.display = "block";
+      if (!qrImg) {
+        qrImg = document.createElement("img");
+        qrImg.id = "wa-qr-img";
+        qrImg.alt = "Código QR WhatsApp";
+        qrImg.style.maxWidth = "260px";
+        qrImg.style.width = "100%";
+        qrImg.style.borderRadius = "10px";
+        qrImg.style.background = "white";
+        qrImg.style.padding = "12px";
+        qrImg.style.boxShadow = "0 8px 24px rgba(0,0,0,0.6)";
+        qrImg.style.imageRendering = "pixelated";
+        qrContainer.appendChild(qrImg);
+      }
+      if (data && data.qrDataURL) {
+        qrImg.src = data.qrDataURL;
+      }
+    }
+
+    if (badge) {
+      badge.innerHTML = '📲 Escanear Código QR';
+      badge.style.background = 'rgba(234, 179, 8, 0.2)';
+      badge.style.color = '#facc15';
+      badge.style.borderColor = '#eab308';
+    }
+  });
+
+  appSocket.on('whatsapp-ready', () => {
+    const currentKey = sessionStorage.getItem("cumpleanos_admin_key");
+    if (currentKey !== "key27102011") return;
+
+    const qrContainer = document.getElementById("codigo-qr-whatsapp") || document.getElementById("wa-qr-container");
+    const badge = document.getElementById("wa-status-badge");
+
+    if (qrContainer) {
+      qrContainer.style.display = "none";
+    }
+
+    if (badge) {
+      badge.innerHTML = '✅ Conectado';
+      badge.style.background = 'rgba(34, 197, 94, 0.2)';
+      badge.style.color = '#4ade80';
+      badge.style.borderColor = '#22c55e';
+    }
+  });
+
+  appSocket.on('whatsapp-loading', (data) => {
+    const currentKey = sessionStorage.getItem("cumpleanos_admin_key");
+    if (currentKey !== "key27102011") return;
+
+    const qrContainer = document.getElementById("codigo-qr-whatsapp") || document.getElementById("wa-qr-container");
+    const badge = document.getElementById("wa-status-badge");
+
+    if (qrContainer) {
+      qrContainer.style.display = "none";
+    }
+
+    if (badge && data) {
+      badge.innerHTML = `⏳ Sincronizando chats (${data.percent}%)...`;
+      badge.style.background = 'rgba(59, 130, 246, 0.2)';
+      badge.style.color = '#60a5fa';
+      badge.style.borderColor = '#3b82f6';
+    }
+  });
+}
 
 function initAdminModal() {
   const openBtn = document.getElementById("admin-btn");
@@ -529,14 +627,15 @@ function initAdminModal() {
       showToast("🔓 Acceso Concedido al Panel del Anfitrión");
     }
 
-    // Si la clave es correcta, remover la clase oculta y mostrar el panel
+    // Si la clave es correcta, iniciar socket seguro y mostrar el panel
+    initAdminSocket();
     modal.style.display = "flex";
     populateAdminForm();
     fetchWhatsAppStatus();
     fetchNeonGuests();
 
     if (adminPollInterval) clearInterval(adminPollInterval);
-    adminPollInterval = setInterval(fetchWhatsAppStatus, 3000);
+    adminPollInterval = setInterval(fetchWhatsAppStatus, 5000);
   });
 
   if (closeBtn) {
@@ -625,12 +724,12 @@ function fetchWhatsAppStatus() {
     .then(res => res.json())
     .then(data => {
       const badge = document.getElementById("wa-status-badge");
-      const qrContainer = document.getElementById("wa-qr-container");
+      const qrContainer = document.getElementById("codigo-qr-whatsapp") || document.getElementById("wa-qr-container");
       const qrImg = document.getElementById("wa-qr-img");
       if (!badge) return;
 
       if (data.ready) {
-        badge.innerHTML = '🟢 Conectado y Listo';
+        badge.innerHTML = '✅ Conectado';
         badge.style.background = 'rgba(34, 197, 94, 0.2)';
         badge.style.color = '#4ade80';
         badge.style.borderColor = '#22c55e';
@@ -642,7 +741,7 @@ function fetchWhatsAppStatus() {
         badge.style.borderColor = '#3b82f6';
         if (qrContainer) qrContainer.style.display = 'none';
       } else if (data.qrDataURL) {
-        badge.innerHTML = '🟡 Escanear Código QR';
+        badge.innerHTML = '📲 Escanear Código QR';
         badge.style.background = 'rgba(234, 179, 8, 0.2)';
         badge.style.color = '#facc15';
         badge.style.borderColor = '#eab308';
@@ -653,7 +752,7 @@ function fetchWhatsAppStatus() {
           }
         }
       } else {
-        badge.innerHTML = '⏳ Esperando QR...';
+        badge.innerHTML = '⏳ Verificando...';
         badge.style.background = 'rgba(148, 163, 184, 0.2)';
         badge.style.color = '#cbd5e1';
         badge.style.borderColor = '#94a3b8';

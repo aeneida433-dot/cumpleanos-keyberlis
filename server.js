@@ -4,6 +4,8 @@
  */
 
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
@@ -16,10 +18,34 @@ if (fs.existsSync('/etc/secrets/.env')) {
 
 const { initDB, query } = require('./db');
 const { normalizePhone } = require('./lib/phoneNormalizer');
-const { initWhatsApp, enviarMensaje, isReady, getLatestQR, getLatestQRDataURL, getLoadingState, getRecentLogs } = require('./whatsapp');
+const { initWhatsApp, enviarMensaje, isReady, getLatestQR, getLatestQRDataURL, getLoadingState, getRecentLogs, setSocketIO } = require('./whatsapp');
 const { initCron, ejecutarRecordatorios } = require('./cron');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
+
+// Conectar Socket.IO con el módulo de WhatsApp
+setSocketIO(io);
+
+io.on('connection', (socket) => {
+  if (isReady()) {
+    socket.emit('whatsapp-ready', { ready: true });
+  } else if (getLatestQRDataURL()) {
+    socket.emit('whatsapp-qr', { qrDataURL: getLatestQRDataURL() });
+  }
+
+  const loading = getLoadingState();
+  if (loading) {
+    socket.emit('whatsapp-loading', loading);
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 
 // Protección contra caídas del proceso por excepciones asíncronas en Node.js
@@ -285,13 +311,14 @@ app.post('/api/test-reminder', async (req, res) => {
   });
 });
 
-// Arrancar servidor principal solo si se ejecuta directamente
+// Arrancar servidor principal con soporte de WebSockets solo si se ejecuta directamente
 if (require.main === module) {
-  app.listen(PORT, async () => {
+  server.listen(PORT, async () => {
     console.log(`\n[+] [Servidor] Activo y escuchando en el puerto ${PORT}`);
     console.log(`[+] [URL Producción Oficial] https://cumpleanos-keyberlis.onrender.com`);
     console.log(`[+] [URL Local] http://localhost:${PORT}`);
     console.log(`[+] [Uptime Endpoint] https://cumpleanos-keyberlis.onrender.com/ping`);
+    console.log(`[+] [WebSockets] Socket.io listo para comunicación en tiempo real`);
     
     try {
       await initDB();
@@ -309,4 +336,6 @@ if (require.main === module) {
   });
 }
 
+app.server = server;
+app.io = io;
 module.exports = app;

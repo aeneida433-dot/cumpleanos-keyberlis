@@ -170,3 +170,21 @@
 - [x] **Tarea 6.5: Optimización de Rendimiento en Render Free Tier**
   - Configuración de flags de Puppeteer (`--js-flags=--max-old-space-size=256`, `--disable-extensions`, etc.) para mantener Chromium por debajo del límite de 512MB RAM.
   - Endpoint `GET /ping` para UptimeRobot 24/7.
+
+---
+
+## Fase 7: Código QR en Tiempo Real con Socket.io en Panel Web
+- [x] **Tarea 7.1: Instalación de `socket.io` y Montaje de WebSockets en `server.js`**
+  - Instalar `socket.io` e integrar `http.createServer(app)` y `new Server(server, { cors: ... })`.
+  - Conectar instancia de socket con `whatsapp.js`.
+- [x] **Tarea 7.2: Emisión de Eventos y Silenciado de QR en Terminal en `whatsapp.js`**
+  - Eliminar `qrcodeTerminal.generate` para no ensuciar los logs de Render.
+  - Generar Data URL Base64 del código QR y emitir `'whatsapp-qr'`.
+  - Emitir `'whatsapp-ready'` al conectar para cambiar estado a "✅ Conectado".
+- [x] **Tarea 7.3: Renderizado Dinámico en Interfaz Web (`index.html` y `js/app.js`)**
+  - Cargar cliente Socket.io en `index.html`.
+  - Escuchar eventos únicamente si se validó la clave `key27102011`.
+  - Insertar código QR en `#codigo-qr-whatsapp` y actualizar texto a "✅ Conectado".
+- [x] **Tarea 7.4: Verificación Green Bar (`npm test`) y Despliegue en `main`**
+  - Asegurar 100% de éxito en las 29 pruebas y realizar commit y push a `origin main`.
+

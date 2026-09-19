@@ -1,4 +1,4 @@
-﻿# Plan de Implementación: Sistema Backend de Invitación y Automatización WhatsApp
+# Plan de Implementación: Sistema Backend de Invitación y Automatización WhatsApp
 
 **Proyecto:** Invitación 15 Años Keyberlis  
 **Stack:** Node.js, Express, Neon PostgreSQL (`pg`), WhatsApp Automation (`whatsapp-web.js` / Baileys), `node-cron`, `qrcode-terminal`, Render, UptimeRobot  
@@ -54,3 +54,10 @@ Implementación modular e incremental del backend en Node.js que conecte la invi
 ### Fase 5: Despliegue en Render y UptimeRobot
 - **Tarea 5.1:** Preparación de archivos de configuración de producción (`render.yaml`, scripts de arranque).
 - **Tarea 5.2:** Guía paso a paso para despliegue en Render y configuración de monitoreo en UptimeRobot.
+
+### Fase 6: Código QR en Tiempo Real con Socket.io en Panel Web
+- **Tarea 6.1:** Instalación de `socket.io` y configuración del servidor HTTP con sockets en `server.js`.
+- **Tarea 6.2:** Emisión de eventos `'whatsapp-qr'` (Data URL en Base64) y `'whatsapp-ready'` en `whatsapp.js`, eliminando la impresión en terminal/logs.
+- **Tarea 6.3:** Integración del cliente Socket.io en `index.html` y escucha condicionada a `key27102011` en `js/app.js`.
+- **Tarea 6.4:** Verificación Green Bar (`npm test`) y despliegue en `main`.
+

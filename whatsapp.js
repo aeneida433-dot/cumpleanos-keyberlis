@@ -5,18 +5,22 @@
  */
 
 const { Client, RemoteAuth } = require('whatsapp-web.js');
-const qrcodeTerminal = require('qrcode-terminal');
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 const PGStore = require('./lib/pgStore');
 
+let ioInstance = null;
 let isClientReady = false;
 let latestQR = null;
 let latestQRDataURL = null;
 let loadingPercent = 0;
 let loadingMessage = '';
 const recentLogs = [];
+
+function setSocketIO(io) {
+  ioInstance = io;
+}
 
 function logEvent(msg) {
   const ts = new Date().toISOString();
@@ -85,8 +89,15 @@ client.on('qr', async (qr) => {
     logEvent('Error al generar QR DataURL: ' + err.message);
   }
 
-  logEvent('📲 [WhatsApp QR] Nuevo código QR generado y listo para escanear.');
-  qrcodeTerminal.generate(qr, { small: true });
+  logEvent('📲 [WhatsApp QR] Nuevo código QR generado y listo para escanear en el panel web.');
+
+  // Emitir de inmediato por Socket.IO al panel web
+  if (ioInstance && latestQRDataURL) {
+    ioInstance.emit('whatsapp-qr', {
+      qrDataURL: latestQRDataURL,
+      qr: qr
+    });
+  }
 });
 
 // Evento: Autenticación exitosa
@@ -110,6 +121,11 @@ client.on('ready', () => {
   latestQRDataURL = null;
   loadingPercent = 0;
   logEvent('✅ [WhatsApp] ¡Cliente listo y conectado 100% para enviar mensajes!');
+
+  // Emitir evento 'whatsapp-ready' por Socket.IO al panel web
+  if (ioInstance) {
+    ioInstance.emit('whatsapp-ready', { ready: true });
+  }
 });
 
 // Evento: Cargando chats / sincronización progresiva
@@ -117,6 +133,10 @@ client.on('loading_screen', (percent, message) => {
   loadingPercent = percent;
   loadingMessage = message;
   logEvent(`⏳ [WhatsApp] Sincronizando chats: ${percent}% - ${message}`);
+
+  if (ioInstance) {
+    ioInstance.emit('whatsapp-loading', { percent, message });
+  }
 });
 
 // Evento: Sesión remota respaldada en Neon PostgreSQL
@@ -204,5 +224,6 @@ module.exports = {
   getLatestQR,
   getLatestQRDataURL,
   getLoadingState,
-  getRecentLogs
+  getRecentLogs,
+  setSocketIO
 };

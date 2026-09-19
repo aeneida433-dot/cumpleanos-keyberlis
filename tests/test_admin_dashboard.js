@@ -91,6 +91,10 @@ async function runSecuritySuite() {
         const forceOk = await request('POST', '/api/admin/forzar-recordatorio?token=cumpleanos2710');
         assert(forceOk.status === 200 && forceOk.body.success === true, 'POST /api/admin/forzar-recordatorio autoriza token cumpleanos2710 con 200 OK');
 
+        // 7. Verificación de Socket.io montado y exportado en tiempo real
+        const { setSocketIO } = require(path.join(projectRoot, 'whatsapp'));
+        assert(Boolean(app.io) && typeof setSocketIO === 'function', 'Socket.io está montado en el servidor HTTP y whatsapp.js exporta setSocketIO');
+
         server.close(() => {
           resolveAll({ passed, failed });
         });

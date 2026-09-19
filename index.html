@@ -271,7 +271,7 @@
         </div>
 
         <!-- Contenedor del QR en vivo si la sesión no está lista -->
-        <div id="wa-qr-container" style="display: none; text-align: center; margin-top: 12px; padding: 16px; background: rgba(0,0,0,0.6); border-radius: 12px; border: 1px dashed rgba(250,204,21,0.4);">
+        <div id="codigo-qr-whatsapp" class="wa-qr-container" style="display: none; text-align: center; margin-top: 12px; padding: 16px; background: rgba(0,0,0,0.6); border-radius: 12px; border: 1px dashed rgba(250,204,21,0.4);">
           <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 10px;">
             <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #facc15; box-shadow: 0 0 8px #facc15;"></span>
             <p style="font-size: 0.82rem; color: #facc15; margin: 0; font-weight: 700;">
@@ -367,7 +367,14 @@
     </div>
   </div>
 
+  <!-- Socket.io para comunicación en tiempo real con fallback -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    if (typeof io === 'undefined') {
+      document.write('<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"><\/script>');
+    }
+  </script>
   <!-- Script principal con cache busting -->
-  <script src="js/app.js?v=2.0.2"></script>
+  <script src="js/app.js?v=2.0.3"></script>
 </body>
 </html>
