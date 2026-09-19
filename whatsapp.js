@@ -54,6 +54,7 @@ const store = new PGStore({
 
 // Configuración optimizada de Puppeteer para Render (<512MB RAM)
 const client = new Client({
+  authTimeoutMs: 60000, // 60 segundos para permitir procesamiento asíncrono en Neon sin timeout
   authStrategy: new RemoteAuth({
     store: store,
     dataPath: path.join(__dirname, '.wwebjs_auth'),
@@ -83,6 +84,12 @@ const client = new Client({
 
 // Evento: Generación de Código QR para vincular sesión
 client.on('qr', async (qr) => {
+  // Evitar bucle: Si el cliente ya está autenticado o conectado, ignorar nuevos códigos QR
+  if (isClientAuthenticated || isClientReady) {
+    console.log('ℹ️ [WhatsApp QR] QR ignorado porque la sesión ya se encuentra autenticada/conectada.');
+    return;
+  }
+
   latestQR = qr;
   try {
     latestQRDataURL = await qrcode.toDataURL(qr, { margin: 3, scale: 8 });
@@ -110,7 +117,7 @@ client.on('authenticated', async () => {
   loadingPercent = 0;
   logEvent('🔐 [WhatsApp] ¡Sesión autenticada correctamente!');
 
-  // Guardar tokens/sesión en Neon inmediatamente
+  // Guardar tokens/sesión en Neon inmediatamente de forma asíncrona con await real
   try {
     await store.save({ session: 'RemoteAuth' });
   } catch (err) {
@@ -129,15 +136,17 @@ client.on('authenticated', async () => {
 
 // Evento: Fallo de autenticación
 client.on('auth_failure', (msg) => {
-  logEvent('❌ [WhatsApp] Fallo de autenticación: ' + JSON.stringify(msg));
-  isClientReady = false;
-  isClientAuthenticated = false;
-  latestQRDataURL = null;
+  logEvent('❌ [WhatsApp] Aviso de autenticación: ' + JSON.stringify(msg));
+  // No tumbar el cliente si la sesión ya fue validada (evita reinicios por micro-latencia de red)
+  if (!isClientAuthenticated) {
+    isClientReady = false;
+    latestQRDataURL = null;
 
-  if (ioInstance) {
-    ioInstance.emit('whatsapp-auth-failure', {
-      message: 'Fallo de autenticación. Por favor genera un nuevo código QR.'
-    });
+    if (ioInstance) {
+      ioInstance.emit('whatsapp-auth-failure', {
+        message: 'Fallo de autenticación. Por favor genera un nuevo código QR.'
+      });
+    }
   }
 });
 
@@ -251,7 +260,7 @@ function getRecentLogs() {
  * Fuerza al cliente a refrescar el código QR o reiniciar el flujo de autenticación
  */
 async function refrescarQR() {
-  if (isClientReady) {
+  if (isClientReady || isClientAuthenticated) {
     if (ioInstance) ioInstance.emit('whatsapp-ready', { ready: true });
     return;
   }
