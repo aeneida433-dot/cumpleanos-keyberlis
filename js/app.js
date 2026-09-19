@@ -272,6 +272,8 @@ function initRSVPForm() {
     e.preventDefault();
 
     const firstName = document.getElementById("guest-first-name").value.trim();
+    const lastNameInput = document.getElementById("guest-last-name");
+    const lastName = lastNameInput ? lastNameInput.value.trim() : "";
     const phoneInput = document.getElementById("guest-phone");
     const phone = phoneInput ? phoneInput.value.trim() : "";
     const attendingRadio = document.querySelector('input[name="attending"]:checked');
