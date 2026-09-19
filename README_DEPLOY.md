@@ -45,7 +45,7 @@ Esta guía detalla los pasos exactos para poner en línea el sistema completo de
 2. Haz clic en **"New +"** y selecciona **"Web Service"**.
 3. Selecciona **"Build and deploy from a Git repository"** y elige tu repositorio `cumpleanos-keyberlis`.
 4. Configura los parámetros básicos:
-   - **Name:** `invitacion-keyberlis-15` (o el nombre que prefieras).
+    - **Name:** `cumpleanos-keyberlis` (nombre de tu servicio en Render).
    - **Region:** Elige la misma región de Neon si es posible (ej: `Ohio (US East)`).
    - **Branch:** `main`.
    - **Runtime:** `Node`.
@@ -86,11 +86,11 @@ Esta guía detalla los pasos exactos para poner en línea el sistema completo de
 
 ## Paso 5: Verificación de la Web y Endpoint de Salud
 
-1. En la parte superior de tu panel de Render verás la URL pública asignada (ejemplo: `https://invitacion-keyberlis-15.onrender.com`).
+1. En la parte superior de tu panel de Render verás la URL pública asignada: `https://cumpleanos-keyberlis.onrender.com`.
 2. Abre la URL en tu navegador o celular:
    - Verás la invitación web completa, la música, la cuenta regresiva y el formulario de confirmación.
 3. Abre la ruta de verificación:
-   - `https://invitacion-keyberlis-15.onrender.com/ping`
+   - `https://cumpleanos-keyberlis.onrender.com/ping`
    - Debe responder:
      ```json
      {

@@ -33,14 +33,14 @@ Esta guía explica paso a paso cómo configurar **UptimeRobot** de forma **100% 
 |---|---|---|
 | **Monitor Type** | `HTTP(s)` | Tipo estándar para peticiones web |
 | **Friendly Name** | `Invitación Keyberlis 15 - Render` | Nombre descriptivo para identificarlo |
-| **URL (or IP)** | `https://TU-APP.onrender.com/ping` | Reemplaza `TU-APP` por el nombre de tu servicio en Render |
+| **URL (or IP)** | `https://cumpleanos-keyberlis.onrender.com/ping` | URL oficial de tu servicio en Render |
 | **Monitoring Interval** | `Every 5 minutes` | Intervalo ideal para evitar que Render se duerma |
 | **Monitor Timeout** | `30 seconds` | Tiempo máximo de espera de respuesta |
 | **HTTP Method** | `HEAD` o `GET` | Cualquiera funciona (`GET` es el predeterminado) |
 | **Select "Alert Contacts To Notify"** | Marca la casilla de tu correo electrónico | Te avisará si ocurre alguna desconexión |
 
 > [!IMPORTANT]
-> Asegúrate de incluir `/ping` al final de la URL (por ejemplo: `https://invitacion-keyberlis-15.onrender.com/ping`). Esta ruta está optimizada para responder al instante con código `200 OK` y mínimo consumo de memoria y CPU.
+> Asegúrate de incluir `/ping` al final de la URL: `https://cumpleanos-keyberlis.onrender.com/ping`. Esta ruta está optimizada para responder al instante con código `200 OK` y mínimo consumo de memoria y CPU.
 
 4. Haz clic en el botón verde **"Create Monitor"** en la parte inferior.
 
@@ -64,7 +64,7 @@ Esta guía explica paso a paso cómo configurar **UptimeRobot** de forma **100% 
 ### 4. Probar la Respuesta del Endpoint Manualmente
 
 Puedes abrir en una pestaña de tu navegador la URL de tu monitor:
-`https://TU-APP.onrender.com/ping`
+`https://cumpleanos-keyberlis.onrender.com/ping`
 
 Deberías ver una respuesta JSON similar a esta:
 ```json

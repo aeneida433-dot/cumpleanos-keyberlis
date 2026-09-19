@@ -2,6 +2,12 @@
    LÓGICA JAVASCRIPT - INVITACIÓN DIGITAL 15 AÑOS
    ======================================================== */
 
+// URL oficial única del proyecto en producción
+const OFFICIAL_PRODUCTION_URL = "https://cumpleanos-keyberlis.onrender.com";
+const API_BASE = (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"))
+  ? window.location.origin
+  : OFFICIAL_PRODUCTION_URL;
+
 // Configuración por defecto actualizada con los datos oficiales
 const DEFAULT_CONFIG = {
   birthdayGirl: "Keyberlis",
@@ -292,7 +298,7 @@ function initRSVPForm() {
     // Si confirma que SÍ asistirá, se registra en Neon PostgreSQL.
     // Si marca que NO asistirá, NO se registra nada en la base de datos (lista 100% limpia).
     if (attending) {
-      fetch('/api/rsvp', {
+      fetch(`${API_BASE}/api/rsvp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -489,7 +495,41 @@ function initAdminModal() {
 
   if (!openBtn || !modal) return;
 
-  openBtn.addEventListener("click", () => {
+  // 1. CAPTURA DEL EVENTO (ÍCONO DE AJUSTES CON TRES CONTROLES DESLIZANTES):
+  // Intercepta el click y suspende la apertura directa del Panel del Anfitrión
+  openBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 2. VALIDACIÓN DE CONTRASEÑA ESTRICTA (key27102011)
+    const storedKey = sessionStorage.getItem("cumpleanos_admin_key");
+    let keyToUse = storedKey;
+
+    if (!keyToUse || keyToUse !== "key27102011") {
+      const promptInput = prompt("🔒 ACCESO RESTRINGIDO AL PANEL DEL ANFITRIÓN\n\nPor favor, ingresa la contraseña de seguridad:");
+
+      // Si se cancela el cuadro o se deja vacío
+      if (promptInput === null || promptInput.trim() === "") {
+        showToast("🚫 Acceso Denegado: Operación cancelada");
+        modal.style.display = "none";
+        return;
+      }
+
+      const cleanPass = promptInput.trim();
+      // Si la clave no es exactamente key27102011
+      if (cleanPass !== "key27102011") {
+        showToast("❌ Acceso Denegado: Contraseña incorrecta");
+        alert("❌ Acceso Denegado: Contraseña incorrecta.");
+        modal.style.display = "none";
+        return;
+      }
+
+      keyToUse = cleanPass;
+      sessionStorage.setItem("cumpleanos_admin_key", keyToUse);
+      showToast("🔓 Acceso Concedido al Panel del Anfitrión");
+    }
+
+    // Si la clave es correcta, remover la clase oculta y mostrar el panel
     modal.style.display = "flex";
     populateAdminForm();
     fetchWhatsAppStatus();
@@ -533,7 +573,7 @@ function initAdminModal() {
       triggerBtn.disabled = true;
       triggerBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando recordatorios...';
 
-      fetch('/api/admin/enviar-recordatorios', {
+      fetch(`${API_BASE}/api/admin/enviar-recordatorios`, {
         method: 'POST',
         headers: getAdminHeaders()
       })
@@ -581,7 +621,7 @@ function initAdminModal() {
 }
 
 function fetchWhatsAppStatus() {
-  fetch('/api/whatsapp/status')
+  fetch(`${API_BASE}/api/whatsapp/status`)
     .then(res => res.json())
     .then(data => {
       const badge = document.getElementById("wa-status-badge");
@@ -623,8 +663,9 @@ function fetchWhatsAppStatus() {
     .catch(err => console.warn('Estado WhatsApp:', err.message));
 }
 
+// 3. ENDPOINT DE DATOS SEGURO: Cabeceras con clave estricta
 function getAdminHeaders() {
-  const key = localStorage.getItem('cumpleanos_admin_key') || 'keyberlis15';
+  const key = sessionStorage.getItem('cumpleanos_admin_key') || '';
   return {
     'Content-Type': 'application/json',
     'x-admin-key': key
@@ -632,10 +673,27 @@ function getAdminHeaders() {
 }
 
 function fetchNeonGuests() {
-  fetch('/api/invitados', {
-    headers: getAdminHeaders()
+  const headers = getAdminHeaders();
+  if (!headers['x-admin-key'] || headers['x-admin-key'] !== 'key27102011') {
+    console.warn('⚠️ [Seguridad] Consulta a /api/invitados cancelada: requiere clave autorizada.');
+    return;
+  }
+
+  fetch(`${API_BASE}/api/invitados`, {
+    headers: headers
   })
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) {
+        if (res.status === 401) {
+          sessionStorage.removeItem('cumpleanos_admin_key');
+          showToast("🔒 Acceso no autorizado a invitados");
+          const modal = document.getElementById("admin-modal");
+          if (modal) modal.style.display = "none";
+        }
+        throw new Error('No autorizado');
+      }
+      return res.json();
+    })
     .then(data => {
       if (!data.success || !data.invitados) return;
       neonGuestsList = data.invitados;
@@ -657,25 +715,35 @@ function fetchNeonGuests() {
       if (tbody) {
         tbody.innerHTML = "";
         if (neonGuestsList.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 12px;">No hay confirmados aún en Neon</td></tr>';
-        } else {
-          neonGuestsList.forEach(g => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-              <td><strong>${g.nombre}</strong></td>
-              <td style="font-size: 0.8rem; color: #cbd5e1;">${g.telefono}</td>
-              <td>
-                <span class="${g.recordatorio_enviado ? 'badge-attending' : 'badge-declined'}">
-                  ${g.recordatorio_enviado ? '✅ Enviado' : '⏳ Pendiente'}
-                </span>
-              </td>
-            `;
-            tbody.appendChild(tr);
-          });
+          tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 16px;">No hay confirmaciones registradas en Neon</td></tr>';
+          return;
         }
+
+        neonGuestsList.forEach(guest => {
+          const tr = document.createElement("tr");
+          const statusBadge = guest.recordatorio_enviado 
+            ? '<span style="color: #4ade80; font-weight: 600;">Enviado ✅</span>' 
+            : '<span style="color: #facc15; font-weight: 600;">Pendiente ⏳</span>';
+
+          tr.innerHTML = `
+            <td><strong>${escapeHTML(guest.nombre)}</strong></td>
+            <td><code>${escapeHTML(guest.telefono)}</code></td>
+            <td>${statusBadge}</td>
+          `;
+          tbody.appendChild(tr);
+        });
       }
     })
-    .catch(err => console.warn('Invitados Neon:', err.message));
+    .catch(err => {
+      console.warn('ℹ️ Consulta de invitados protegida:', err.message);
+    });
+}
+
+function escapeHTML(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>'"]/g, 
+    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+  );
 }
 
 function populateAdminForm() {
@@ -700,7 +768,10 @@ function updateUIWithConfig() {
 }
 
 function renderGuestList() {
-  fetchNeonGuests();
+  const key = sessionStorage.getItem('cumpleanos_admin_key');
+  if (key === 'key27102011') {
+    fetchNeonGuests();
+  }
 }
 
 function exportGuestListToCSV() {

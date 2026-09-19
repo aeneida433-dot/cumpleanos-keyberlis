@@ -149,14 +149,18 @@ app.post('/api/rsvp', async (req, res) => {
 // Función de autorización para panel administrativo general
 function isAuthorized(req) {
   const adminKey = req.headers['x-admin-key'] || req.query.key;
+  if (!adminKey || typeof adminKey !== 'string' || adminKey.trim() === '') {
+    return false;
+  }
+  const cleanKey = adminKey.trim();
   const expectedKey = process.env.ADMIN_KEY || 'clave_admin_keyberlis_2710';
   const dashboardKey = process.env.ADMIN_DASHBOARD_KEY || 'key27102011';
   return (
-    adminKey === expectedKey ||
-    adminKey === dashboardKey ||
-    adminKey === 'key27102011' ||
-    adminKey === 'keyberlis15' ||
-    adminKey === 'cumpleanos2710'
+    cleanKey === expectedKey ||
+    cleanKey === dashboardKey ||
+    cleanKey === 'key27102011' ||
+    cleanKey === 'keyberlis15' ||
+    cleanKey === 'cumpleanos2710'
   );
 }
 
@@ -285,8 +289,9 @@ app.post('/api/test-reminder', async (req, res) => {
 if (require.main === module) {
   app.listen(PORT, async () => {
     console.log(`\n[+] [Servidor] Activo y escuchando en el puerto ${PORT}`);
-    console.log(`[+] [URL Web] http://localhost:${PORT}`);
-    console.log(`[+] [Uptime Endpoint] http://localhost:${PORT}/ping`);
+    console.log(`[+] [URL Producción Oficial] https://cumpleanos-keyberlis.onrender.com`);
+    console.log(`[+] [URL Local] http://localhost:${PORT}`);
+    console.log(`[+] [Uptime Endpoint] https://cumpleanos-keyberlis.onrender.com/ping`);
     
     try {
       await initDB();

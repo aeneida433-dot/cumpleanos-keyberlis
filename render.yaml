@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: invitacion-keyberlis-15
+    name: cumpleanos-keyberlis
     env: node
     plan: free
     region: ohio
