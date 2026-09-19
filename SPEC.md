@@ -9,7 +9,7 @@
 
 ## 1. Resumen Ejecutivo y Objetivos
 
-El sistema centraliza la confirmación de asistencia (RSVP) para la fiesta de 15 años de **Keyberlis** (Sábado 07 de Noviembre de 2026), almacena los registros de forma idempotente y agrupable por familia en una base de datos PostgreSQL Serverless en **Neon**, mantiene el servicio activo 24/7 en el tier gratuito de **Render** mediante **UptimeRobot**, y provee un motor de **WhatsApp** para recordatorios programados el **6 de Noviembre a las 12:00 PM** con agrupación familiar, cola anti-ban (4 a 8 segundos de jitter) y alias de regalo oficial (`cumpleanos2710`).
+El sistema centraliza la confirmación de asistencia (RSVP) para la fiesta de 15 años de **Keyberlis** (Sábado 07 de Noviembre de 2026), almacena los registros de forma idempotente y agrupable por familia en una base de datos PostgreSQL Serverless en **Neon**, mantiene el servicio activo 24/7 en el tier gratuito de **Render** mediante **UptimeRobot**, y provee un motor de **WhatsApp** para recordatorios programados el **6 de Noviembre a las 12:00 PM** con agrupación familiar, cola anti-ban (4 a 8 segundos de jitter) y alias de regalo oficial (`key.2710`).
 
 ---
 
@@ -48,7 +48,7 @@ graph TD
 ### 3.2. Zona Horaria y Precisión
 - Zona horaria de referencia: `America/Buenos_Aires`.
 - Disparo oficial del recordatorio: `2026-11-06 12:00:00 UTC-3`.
-- Alias de regalo: `cumpleanos2710` (Mercado Pago).
+- Alias de regalo: `key.2710` (Mercado Pago).
 
 ---
 
@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_session (
      - 3+ personas: `Juan, María y Sofía`
 3. Mensaje a despachar:
    ```text
-   ¡Hola [NOMBRES]! Les recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirmen su asistencia si aún no lo han hecho. Si desean realizar un presente, pueden hacerlo en efectivo a nuestro alias: cumpleanos2710
+   ¡Hola [NOMBRES]! Les recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirmen su asistencia si aún no lo han hecho. Si desean realizar un presente, pueden hacerlo en efectivo a nuestro alias: key.2710
    ```
 4. **Cola Secuencial Anti-Ban:** Pausa aleatoria (jitter) de 4 a 8 segundos (`4000 + Math.random() * 4000`) entre cada número telefónico procesado.
 5. **Persistencia Inmediata:** Actualización atómica en Neon apenas concluye cada despacho con éxito:

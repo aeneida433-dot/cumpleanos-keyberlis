@@ -243,8 +243,8 @@ app.post('/api/test-reminder', async (req, res) => {
     return res.status(400).json({ success: false, error: phoneRes.error });
   }
 
-  const alias = process.env.ALIAS_REGALO || 'cumpleanos2710';
-  const mensajePrueba = `¡Hola! Te recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirma tu asistencia si aún no lo has hecho. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: ${alias}`;
+  const alias = process.env.ALIAS_REGALO || 'key.2710';
+  const mensajePrueba = `¡Hola! Te recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirma tu asistencia si aún no lo han hecho. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: ${alias}`;
 
   const resultado = await enviarMensaje(phoneRes.formatted, mensajePrueba);
   return res.json({

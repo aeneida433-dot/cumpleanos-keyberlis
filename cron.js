@@ -9,7 +9,7 @@ const { enviarMensaje, isReady } = require('./whatsapp');
 require('dotenv').config();
 
 const TIMEZONE = process.env.TIMEZONE || 'America/Argentina/Buenos_Aires';
-const ALIAS = process.env.ALIAS_REGALO || 'cumpleanos2710';
+const ALIAS = process.env.ALIAS_REGALO || 'key.2710';
 
 // Utilidad para retardo (pausa de seguridad anti-ban)
 function sleep(ms) {
