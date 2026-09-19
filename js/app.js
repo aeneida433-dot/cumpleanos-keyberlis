@@ -602,6 +602,30 @@ function initAdminSocket() {
     }
   });
 
+  appSocket.on('whatsapp-authenticated', (data) => {
+    if (currentAdminKey !== "key27102011") return;
+
+    const qrContainer = document.getElementById("codigo-qr-whatsapp") || document.getElementById("wa-qr-container");
+    const badge = document.getElementById("wa-status-badge");
+    const btnRefrescarQR = document.getElementById("btn-refrescar-qr");
+
+    if (qrContainer) {
+      qrContainer.style.display = "none";
+    }
+
+    if (btnRefrescarQR) {
+      btnRefrescarQR.disabled = true;
+      btnRefrescarQR.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Sesión iniciada. Conectando...</span>';
+    }
+
+    if (badge) {
+      badge.innerHTML = '🔐 Sesión iniciada - Conectando...';
+      badge.style.background = 'rgba(59, 130, 246, 0.2)';
+      badge.style.color = '#60a5fa';
+      badge.style.borderColor = '#3b82f6';
+    }
+  });
+
   appSocket.on('whatsapp-loading', (data) => {
     if (currentAdminKey !== "key27102011") return;
 

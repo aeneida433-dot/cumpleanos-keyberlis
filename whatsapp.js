@@ -12,6 +12,7 @@ const PGStore = require('./lib/pgStore');
 
 let ioInstance = null;
 let isClientReady = false;
+let isClientAuthenticated = false;
 let latestQR = null;
 let latestQRDataURL = null;
 let loadingPercent = 0;
@@ -102,16 +103,31 @@ client.on('qr', async (qr) => {
 
 // Evento: Autenticación exitosa
 client.on('authenticated', () => {
+  isClientAuthenticated = true;
   logEvent('🔐 [WhatsApp] ¡Sesión autenticada correctamente!');
   latestQR = null;
   latestQRDataURL = null;
+
+  if (ioInstance) {
+    ioInstance.emit('whatsapp-authenticated', {
+      authenticated: true,
+      message: 'Sesión iniciada en el celular. Conectando...'
+    });
+  }
 });
 
 // Evento: Fallo de autenticación
 client.on('auth_failure', (msg) => {
   logEvent('❌ [WhatsApp] Fallo de autenticación: ' + JSON.stringify(msg));
   isClientReady = false;
+  isClientAuthenticated = false;
   latestQRDataURL = null;
+
+  if (ioInstance) {
+    ioInstance.emit('whatsapp-auth-failure', {
+      message: 'Fallo de autenticación. Por favor genera un nuevo código QR.'
+    });
+  }
 });
 
 // Evento: Cliente listo para enviar mensajes
@@ -196,6 +212,10 @@ function isReady() {
   return isClientReady;
 }
 
+function isAuthenticated() {
+  return isClientAuthenticated;
+}
+
 function getLatestQR() {
   return latestQR;
 }
@@ -243,6 +263,7 @@ module.exports = {
   initWhatsApp,
   enviarMensaje,
   isReady,
+  isAuthenticated,
   getLatestQR,
   getLatestQRDataURL,
   getLoadingState,

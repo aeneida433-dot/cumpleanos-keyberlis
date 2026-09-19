@@ -26,7 +26,7 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('sslmode=requi
 
 const { initDB, query } = require('./db');
 const { normalizePhone } = require('./lib/phoneNormalizer');
-const { initWhatsApp, enviarMensaje, isReady, getLatestQR, getLatestQRDataURL, getLoadingState, getRecentLogs, setSocketIO, refrescarQR } = require('./whatsapp');
+const { initWhatsApp, enviarMensaje, isReady, isAuthenticated, getLatestQR, getLatestQRDataURL, getLoadingState, getRecentLogs, setSocketIO, refrescarQR } = require('./whatsapp');
 const { initCron, ejecutarRecordatorios } = require('./cron');
 
 const app = express();
@@ -44,6 +44,8 @@ setSocketIO(io);
 io.on('connection', (socket) => {
   if (isReady()) {
     socket.emit('whatsapp-ready', { ready: true });
+  } else if (typeof isAuthenticated === 'function' && isAuthenticated()) {
+    socket.emit('whatsapp-authenticated', { authenticated: true, message: 'Sesión iniciada en el celular. Conectando...' });
   } else if (getLatestQRDataURL()) {
     socket.emit('whatsapp-qr', { qrDataURL: getLatestQRDataURL() });
   }
