@@ -16,7 +16,7 @@ if (fs.existsSync('/etc/secrets/.env')) {
 
 const { initDB, query } = require('./db');
 const { normalizePhone } = require('./lib/phoneNormalizer');
-const { initWhatsApp, enviarMensaje, isReady, getLatestQR, getLatestQRDataURL } = require('./whatsapp');
+const { initWhatsApp, enviarMensaje, isReady, getLatestQR, getLatestQRDataURL, getLoadingState } = require('./whatsapp');
 const { initCron, ejecutarRecordatorios } = require('./cron');
 
 const app = express();
@@ -147,7 +147,8 @@ app.get('/api/whatsapp/status', (req, res) => {
   res.json({
     ready: isReady(),
     hasQR: !!getLatestQR(),
-    qrDataURL: getLatestQRDataURL()
+    qrDataURL: getLatestQRDataURL(),
+    loading: getLoadingState()
   });
 });
 

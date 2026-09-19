@@ -595,6 +595,12 @@ function fetchWhatsAppStatus() {
         badge.style.color = '#4ade80';
         badge.style.borderColor = '#22c55e';
         if (qrContainer) qrContainer.style.display = 'none';
+      } else if (data.loading) {
+        badge.innerHTML = `⏳ Sincronizando chats (${data.loading.percent}%)...`;
+        badge.style.background = 'rgba(59, 130, 246, 0.2)';
+        badge.style.color = '#60a5fa';
+        badge.style.borderColor = '#3b82f6';
+        if (qrContainer) qrContainer.style.display = 'none';
       } else if (data.qrDataURL) {
         badge.innerHTML = '🟡 Escanear Código QR';
         badge.style.background = 'rgba(234, 179, 8, 0.2)';

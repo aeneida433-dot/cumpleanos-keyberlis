@@ -13,6 +13,8 @@ const PGStore = require('./lib/pgStore');
 let isClientReady = false;
 let latestQR = null;
 let latestQRDataURL = null;
+let loadingPercent = 0;
+let loadingMessage = '';
 
 // Ubicar ejecutable de Chrome en cache local de Puppeteer si existe
 function getChromeExecutablePath() {
@@ -55,9 +57,7 @@ const client = new Client({
       '--disable-dev-shm-usage',
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
-      '--no-zygote',
-      '--disable-gpu',
-      '--single-process'
+      '--disable-gpu'
     ]
   }
 });
@@ -100,10 +100,23 @@ client.on('ready', () => {
   console.log('✅ [WhatsApp] ¡Cliente listo y conectado 100% para enviar mensajes!');
 });
 
+// Evento: Cargando chats / sincronización
+client.on('loading_screen', (percent, message) => {
+  loadingPercent = percent;
+  loadingMessage = message;
+  console.log(`⏳ [WhatsApp] Sincronizando chats: ${percent}% - ${message}`);
+});
+
+// Evento: Sesión remota respaldada en Neon
+client.on('remote_session_saved', () => {
+  console.log('🎉 [WhatsApp] ¡Sesión remota respaldada exitosamente en Neon PostgreSQL!');
+});
+
 // Evento: Desconexion
 client.on('disconnected', (reason) => {
   isClientReady = false;
   latestQRDataURL = null;
+  loadingPercent = 0;
   console.warn('⚠️ [WhatsApp] Cliente desconectado. Motivo:', reason);
 });
 
@@ -159,11 +172,20 @@ function getLatestQRDataURL() {
   return latestQRDataURL;
 }
 
+function getLoadingState() {
+  if (isClientReady || latestQR) return null;
+  if (loadingPercent > 0) {
+    return { percent: loadingPercent, message: loadingMessage };
+  }
+  return null;
+}
+
 module.exports = {
   client,
   initWhatsApp,
   enviarMensaje,
   isReady,
   getLatestQR,
-  getLatestQRDataURL
+  getLatestQRDataURL,
+  getLoadingState
 };
