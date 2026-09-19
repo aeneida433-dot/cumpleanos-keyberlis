@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel de Administración | 15 Años Keyberlis</title>
+  <link rel="icon" type="image/png" href="assets/corona_favicon.png">
+  <!-- Fuentes Google -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --bg-card: rgba(18, 24, 38, 0.95);
+      --gold-primary: #d4af37;
+      --gold-light: #f3e5ab;
+      --gold-dark: #aa8c2c;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-color: rgba(212, 175, 55, 0.2);
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.12) 0%, transparent 70%);
+      color: var(--text-main);
+      font-family: 'Montserrat', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Pantalla de Bloqueo / Login */
+    #lock-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(11, 15, 25, 0.98);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 20px;
+    }
+
+    .login-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 36px 28px;
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(212, 175, 55, 0.15);
+    }
+
+    .login-icon {
+      font-size: 2.5rem;
+      color: var(--gold-primary);
+      margin-bottom: 16px;
+    }
+
+    .login-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.4rem;
+      color: var(--gold-light);
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+    }
+
+    .login-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--gold-light);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      color: white;
+      font-size: 1rem;
+      transition: all 0.2s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--gold-primary);
+      box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 13px;
+      background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
+      border: none;
+      border-radius: 8px;
+      color: #0f172a;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(212, 175, 55, 0.3);
+    }
+
+    .error-msg {
+      color: var(--danger);
+      font-size: 0.85rem;
+      margin-top: 12px;
+      display: none;
+      font-weight: 500;
+    }
+
+    /* Estructura Principal del Dashboard */
+    header {
+      border-bottom: 1px solid var(--border-color);
+      padding: 16px 24px;
+      background: rgba(18, 24, 38, 0.7);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-logo {
+      font-family: 'Cinzel', serif;
+      font-size: 1.2rem;
+      color: var(--gold-light);
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--gold-light);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-outline:hover {
+      background: rgba(212, 175, 55, 0.1);
+      border-color: var(--gold-primary);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 16px;
+      flex: 1;
+      width: 100%;
+    }
+
+    /* Grid de Métricas */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .metric-icon {
+      width: 50px;
+      height: 50px;
+      border-radius: 10px;
+      background: rgba(212, 175, 55, 0.1);
+      color: var(--gold-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+    }
+
+    .metric-val {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: white;
+      font-family: 'Cinzel', serif;
+    }
+
+    .metric-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Fila de Acciones y Estado de WhatsApp */
+    .admin-controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 768px) {
+      .admin-controls-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .card-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.05rem;
+      color: var(--gold-light);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .badge-connected {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-waiting {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .badge-disconnected {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    /* Tabla de Invitados */
+    .table-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .search-box {
+      position: relative;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 9px 14px 9px 36px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      color: white;
+      font-size: 0.88rem;
+    }
+
+    .search-box i {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .table-container {
+      overflow-x: auto;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 12px 16px;
+      color: var(--gold-light);
+      font-weight: 600;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.5px;
+    }
+
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: #e2e8f0;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .tag-enviado {
+      display: inline-block;
+      padding: 3px 8px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .tag-pendiente {
+      display: inline-block;
+      padding: 3px 8px;
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    /* Botón Forzar Recordatorios */
+    .btn-action-green {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-action-green:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(16, 185, 129, 0.3);
+    }
+
+    #qr-container img {
+      max-width: 220px;
+      border-radius: 8px;
+      border: 3px solid var(--gold-primary);
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PANTALLA DE BLOQUEO (ACCESO POR CONTRASEÑA OBLIGATORIA) -->
+  <div id="lock-screen">
+    <div class="login-card">
+      <div class="login-icon">
+        <i class="fa-solid fa-crown"></i>
+      </div>
+      <h2 class="login-title">Panel del Anfitrión</h2>
+      <p class="login-subtitle">15 Años Keyberlis &bull; Control y Asistencia</p>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label" for="password-input">Contraseña de Acceso:</label>
+          <input type="password" id="password-input" class="form-input" placeholder="Ingresa la clave maestra" autofocus required>
+        </div>
+        <button type="submit" class="btn-primary" id="login-btn">
+          <i class="fa-solid fa-lock-open"></i> Desbloquear Panel
+        </button>
+        <p class="error-msg" id="login-error">
+          <i class="fa-solid fa-circle-exclamation"></i> Contraseña incorrecta. Acceso denegado.
+        </p>
+      </form>
+    </div>
+  </div>
+
+  <!-- INTERFAZ PRINCIPAL DEL DASHBOARD (VISIBLE SOLO AUTORIZADO) -->
+  <header>
+    <div class="header-left">
+      <i class="fa-solid fa-crown" style="color: var(--gold-primary); font-size: 1.3rem;"></i>
+      <span class="header-logo">Keyberlis 15 &bull; Dashboard</span>
+    </div>
+    <div class="header-actions">
+      <button class="btn-outline" id="refresh-btn" title="Actualizar datos">
+        <i class="fa-solid fa-rotate-right"></i> <span class="hide-mobile">Actualizar</span>
+      </button>
+      <button class="btn-outline" id="logout-btn" title="Cerrar sesión">
+        <i class="fa-solid fa-arrow-right-from-bracket"></i> <span class="hide-mobile">Cerrar Sesión</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- MÉTRICAS EN VIVO -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-icon"><i class="fa-solid fa-users"></i></div>
+        <div>
+          <div class="metric-val" id="metric-total">0</div>
+          <div class="metric-label">Invitados Confirmados</div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon"><i class="fa-solid fa-people-roof"></i></div>
+        <div>
+          <div class="metric-val" id="metric-families">0</div>
+          <div class="metric-label">Familias / Teléfonos</div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon" style="color: #34d399; background: rgba(16, 185, 129, 0.1);"><i class="fa-solid fa-circle-check"></i></div>
+        <div>
+          <div class="metric-val" id="metric-sent">0</div>
+          <div class="metric-label">Recordatorios Enviados</div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon" style="color: #fbbf24; background: rgba(245, 158, 11, 0.1);"><i class="fa-solid fa-clock"></i></div>
+        <div>
+          <div class="metric-val" id="metric-pending">0</div>
+          <div class="metric-label">Pendientes de Envío</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACCIONES DE CONTROL Y WHATSAPP -->
+    <div class="admin-controls-grid">
+      <!-- Tarjeta WhatsApp -->
+      <div class="card">
+        <h3 class="card-title"><i class="fa-brands fa-whatsapp"></i> Estado de WhatsApp</h3>
+        <div id="wa-badge" class="status-badge badge-waiting">
+          <i class="fa-solid fa-spinner fa-spin"></i> Consultando estado...
+        </div>
+        <div id="qr-container" style="display: none; text-align: center;">
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
+            Escanea el código con tu WhatsApp para sincronizar la línea:
+          </p>
+          <img id="qr-image" src="" alt="Código QR de WhatsApp">
+        </div>
+      </div>
+
+      <!-- Tarjeta Envío Forzado y Exportación -->
+      <div class="card">
+        <h3 class="card-title"><i class="fa-solid fa-paper-plane"></i> Disparo de Recordatorios</h3>
+        <p style="font-size: 0.83rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5;">
+          El envío oficial se ejecutará el <strong>06 de Noviembre a las 12:00 PM</strong> con el alias <code>key.2710</code> y pausas anti-ban. Puedes forzar el despacho inmediato ahora si lo deseas:
+        </p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button class="btn-action-green" id="force-reminders-btn">
+            <i class="fa-solid fa-bolt"></i> Forzar Envío a Pendientes
+          </button>
+          <button class="btn-outline" id="export-btn">
+            <i class="fa-solid fa-file-excel"></i> Descargar CSV
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABLA DE INVITADOS CONFIRMADOS DE NEON -->
+    <div class="card">
+      <div class="table-header-row">
+        <h3 class="card-title" style="margin-bottom: 0;">
+          <i class="fa-solid fa-address-book"></i> Invitados Confirmados en Neon
+        </h3>
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="search-input" placeholder="Buscar por nombre o teléfono...">
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre y Apellido</th>
+              <th>Teléfono (E.164)</th>
+              <th>Estado Recordatorio</th>
+              <th>Fecha de Confirmación</th>
+            </tr>
+          </thead>
+          <tbody id="guests-table-body">
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                Cargando invitados desde Neon...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Variables de Estado
+    let authKey = sessionStorage.getItem('keyberlis_admin_key') || '';
+    let guestsData = [];
+
+    const lockScreen = document.getElementById('lock-screen');
+    const loginForm = document.getElementById('login-form');
+    const passwordInput = document.getElementById('password-input');
+    const loginError = document.getElementById('login-error');
+    const loginBtn = document.getElementById('login-btn');
+
+    // Comprobar si ya existe sesión autorizada
+    if (authKey) {
+      verifyAndLoad(authKey);
+    }
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const enteredKey = passwordInput.value.trim();
+      loginError.style.display = 'none';
+      loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verificando...';
+
+      try {
+        const res = await fetch('/api/admin/verify-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: enteredKey })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          authKey = enteredKey;
+          sessionStorage.setItem('keyberlis_admin_key', authKey);
+          unlockDashboard();
+          await loadDashboardData();
+        } else {
+          loginError.style.display = 'block';
+        }
+      } catch (err) {
+        loginError.innerText = 'Error al contactar con el servidor. Intente de nuevo.';
+        loginError.style.display = 'block';
+      } finally {
+        loginBtn.innerHTML = '<i class="fa-solid fa-lock-open"></i> Desbloquear Panel';
+      }
+    });
+
+    async function verifyAndLoad(key) {
+      try {
+        const res = await fetch('/api/admin/verify-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: key })
+        });
+        if (res.ok) {
+          unlockDashboard();
+          await loadDashboardData();
+        } else {
+          sessionStorage.removeItem('keyberlis_admin_key');
+          authKey = '';
+        }
+      } catch (e) {
+        console.error('Fallo de verificación inicial:', e);
+      }
+    }
+
+    function unlockDashboard() {
+      lockScreen.style.display = 'none';
+    }
+
+    document.getElementById('logout-btn').addEventListener('click', () => {
+      sessionStorage.removeItem('keyberlis_admin_key');
+      authKey = '';
+      lockScreen.style.display = 'flex';
+      passwordInput.value = '';
+    });
+
+    document.getElementById('refresh-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('refresh-btn');
+      btn.innerHTML = '<i class="fa-solid fa-rotate-right fa-spin"></i>';
+      await loadDashboardData();
+      setTimeout(() => {
+        btn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> <span class="hide-mobile">Actualizar</span>';
+      }, 500);
+    });
+
+    // Cargar Invitados y Métricas desde Neon
+    async function loadDashboardData() {
+      if (!authKey) return;
+
+      try {
+        const res = await fetch('/api/invitados', {
+          headers: { 'x-admin-key': authKey }
+        });
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            sessionStorage.removeItem('keyberlis_admin_key');
+            location.reload();
+          }
+          return;
+        }
+
+        const data = await res.json();
+        guestsData = data.invitados || [];
+
+        // Calcular métricas
+        const total = guestsData.length;
+        const uniquePhones = new Set(guestsData.map(g => g.telefono)).size;
+        const sent = guestsData.filter(g => g.recordatorio_enviado).length;
+        const pending = total - sent;
+
+        document.getElementById('metric-total').innerText = total;
+        document.getElementById('metric-families').innerText = uniquePhones;
+        document.getElementById('metric-sent').innerText = sent;
+        document.getElementById('metric-pending').innerText = pending;
+
+        renderTable(guestsData);
+        await checkWhatsAppStatus();
+
+      } catch (err) {
+        console.error('Error cargando invitados:', err);
+      }
+    }
+
+    // Renderizar Tabla
+    function renderTable(list) {
+      const tbody = document.getElementById('guests-table-body');
+      if (!list || list.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+              No hay invitados confirmados registrados aún.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = list.map(inv => {
+        const fecha = new Date(inv.fecha_registro).toLocaleString('es-AR', {
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          hour: '2-digit', minute: '2-digit'
+        });
+
+        const statusTag = inv.recordatorio_enviado
+          ? `<span class="tag-enviado"><i class="fa-solid fa-check"></i> Enviado</span>`
+          : `<span class="tag-pendiente"><i class="fa-solid fa-clock"></i> Pendiente</span>`;
+
+        return `
+          <tr>
+            <td style="color: var(--gold-light); font-weight: 600;">#${inv.id}</td>
+            <td style="font-weight: 600;">${escapeHTML(inv.nombre)}</td>
+            <td><code style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px;">${inv.telefono}</code></td>
+            <td>${statusTag}</td>
+            <td style="color: var(--text-muted);">${fecha}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Buscador en Vivo
+    document.getElementById('search-input').addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      const filtered = guestsData.filter(inv => 
+        inv.nombre.toLowerCase().includes(q) || inv.telefono.includes(q)
+      );
+      renderTable(filtered);
+    });
+
+    // Estado de WhatsApp
+    async function checkWhatsAppStatus() {
+      try {
+        const res = await fetch('/api/whatsapp/status');
+        const data = await res.json();
+        const badge = document.getElementById('wa-badge');
+        const qrBox = document.getElementById('qr-container');
+        const qrImg = document.getElementById('qr-image');
+
+        if (data.ready) {
+          badge.className = 'status-badge badge-connected';
+          badge.innerHTML = '<i class="fa-solid fa-circle-check"></i> WhatsApp Conectado y Listo';
+          qrBox.style.display = 'none';
+        } else if (data.hasQR && data.qrDataURL) {
+          badge.className = 'status-badge badge-waiting';
+          badge.innerHTML = '<i class="fa-solid fa-qrcode"></i> Escanear Código QR';
+          qrImg.src = data.qrDataURL;
+          qrBox.style.display = 'block';
+        } else if (data.loading) {
+          badge.className = 'status-badge badge-waiting';
+          badge.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sincronizando chats (${data.loading.percent}%)...`;
+          qrBox.style.display = 'none';
+        } else {
+          badge.className = 'status-badge badge-disconnected';
+          badge.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> WhatsApp Desconectado';
+          qrBox.style.display = 'none';
+        }
+      } catch (err) {
+        console.error('Error al verificar WhatsApp:', err);
+      }
+    }
+
+    // Forzar Recordatorios
+    document.getElementById('force-reminders-btn').addEventListener('click', async () => {
+      if (!confirm('¿Deseas disparar ahora el envío masivo de recordatorios por WhatsApp a todos los invitados pendientes?')) {
+        return;
+      }
+
+      const btn = document.getElementById('force-reminders-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Iniciando...';
+
+      try {
+        const res = await fetch('/api/admin/forzar-recordatorio?token=cumpleanos2710', {
+          method: 'POST'
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          alert('¡Proceso iniciado! Los recordatorios se están despachando en segundo plano con protección anti-ban.');
+        } else {
+          alert('Error al forzar recordatorios: ' + (data.error || 'Acceso denegado'));
+        }
+      } catch (err) {
+        alert('Error de conexión con el servidor.');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Forzar Envío a Pendientes';
+        await loadDashboardData();
+      }
+    });
+
+    // Exportar CSV
+    document.getElementById('export-btn').addEventListener('click', () => {
+      if (!guestsData.length) {
+        alert('No hay datos para exportar.');
+        return;
+      }
+      let csv = 'ID,Nombre,Telefono,Recordatorio Enviado,Fecha Registro\n';
+      guestsData.forEach(g => {
+        csv += `${g.id},"${g.nombre.replace(/"/g, '""')}",${g.telefono},${g.recordatorio_enviado ? 'SI' : 'NO'},${g.fecha_registro}\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `invitados_keyberlis_15_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    // Polling periódico cada 10 segundos
+    setInterval(() => {
+      if (authKey && lockScreen.style.display === 'none') {
+        checkWhatsAppStatus();
+      }
+    }, 10000);
+  </script>
+</body>
+</html>

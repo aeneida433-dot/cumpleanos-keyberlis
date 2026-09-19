@@ -48,6 +48,26 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname)));
 
 // ========================================================
+// 0. PANTALLA DE ADMINISTRACIÓN PROTEGIDA: GET /admin/dashboard
+// ========================================================
+app.get('/admin/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
+// Endpoint de verificación de clave para el dashboard (clave exacta: key27102011)
+app.post('/api/admin/verify-key', (req, res) => {
+  const { key } = req.body;
+  const expectedKey = process.env.ADMIN_DASHBOARD_KEY || 'key27102011';
+
+  if (key === expectedKey || key === 'key27102011') {
+    return res.status(200).json({ success: true, message: 'Acceso concedido al dashboard.' });
+  }
+
+  console.warn(`🔒 [Seguridad] Intento no autorizado al dashboard con clave: "${key || 'vacía'}"`);
+  return res.status(401).json({ success: false, error: 'Contraseña incorrecta. Acceso denegado.' });
+});
+
+// ========================================================
 // 1. RUTA DE MANTENIMIENTO: GET /ping (UptimeRobot 24/7)
 // ========================================================
 app.get('/ping', (req, res) => {
@@ -130,7 +150,14 @@ app.post('/api/rsvp', async (req, res) => {
 function isAuthorized(req) {
   const adminKey = req.headers['x-admin-key'] || req.query.key;
   const expectedKey = process.env.ADMIN_KEY || 'clave_admin_keyberlis_2710';
-  return adminKey === expectedKey || adminKey === 'keyberlis15' || adminKey === 'cumpleanos2710';
+  const dashboardKey = process.env.ADMIN_DASHBOARD_KEY || 'key27102011';
+  return (
+    adminKey === expectedKey ||
+    adminKey === dashboardKey ||
+    adminKey === 'key27102011' ||
+    adminKey === 'keyberlis15' ||
+    adminKey === 'cumpleanos2710'
+  );
 }
 
 // ========================================================

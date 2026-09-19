@@ -160,6 +160,14 @@ CREATE TABLE IF NOT EXISTS whatsapp_session (
 }
 ```
 
+### 5.4. Pantalla de Administración Protegida (Dashboard del Anfitrión)
+- **Ruta Web:** `GET /admin/dashboard`
+- **Interfaz:** Sirve `admin.html` con bloqueo de seguridad obligatorio.
+- **Control de Acceso:** Clave exacta obligatoria **`key27102011`**.
+  - Endpoint de validación: `POST /api/admin/verify-key` con payload `{ "key": "key27102011" }`.
+  - Si la clave es errónea: Devuelve **HTTP 401 Unauthorized** y bloquea el acceso.
+  - Si la clave es correcta: Desbloquea las métricas (Total confirmados, familias, recordatorios enviados), la tabla de invitados confirmados en Neon con buscador en vivo, el estado y código QR de WhatsApp en vivo, y el botón para forzar recordatorios.
+
 ---
 
 ## 6. Lógica del Cron Job y Agrupación Familiar (`cron.js`)
