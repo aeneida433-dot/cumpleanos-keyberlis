@@ -496,7 +496,7 @@ function initAdminModal() {
     fetchNeonGuests();
 
     if (adminPollInterval) clearInterval(adminPollInterval);
-    adminPollInterval = setInterval(fetchWhatsAppStatus, 5000);
+    adminPollInterval = setInterval(fetchWhatsAppStatus, 3000);
   });
 
   if (closeBtn) {
@@ -608,7 +608,9 @@ function fetchWhatsAppStatus() {
         badge.style.borderColor = '#eab308';
         if (qrContainer) {
           qrContainer.style.display = 'block';
-          if (qrImg) qrImg.src = data.qrDataURL;
+          if (qrImg && qrImg.src !== data.qrDataURL) {
+            qrImg.src = data.qrDataURL;
+          }
         }
       } else {
         badge.innerHTML = '⏳ Esperando QR...';

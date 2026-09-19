@@ -15,6 +15,15 @@ let latestQR = null;
 let latestQRDataURL = null;
 let loadingPercent = 0;
 let loadingMessage = '';
+const recentLogs = [];
+
+function logEvent(msg) {
+  const ts = new Date().toISOString();
+  const entry = `[${ts}] ${msg}`;
+  recentLogs.push(entry);
+  if (recentLogs.length > 50) recentLogs.shift();
+  console.log(msg);
+}
 
 // Ubicar ejecutable de Chrome en cache local de Puppeteer si existe
 function getChromeExecutablePath() {
@@ -66,28 +75,25 @@ const client = new Client({
 client.on('qr', async (qr) => {
   latestQR = qr;
   try {
-    latestQRDataURL = await qrcode.toDataURL(qr, { margin: 2, scale: 6 });
+    latestQRDataURL = await qrcode.toDataURL(qr, { margin: 3, scale: 8 });
   } catch (err) {
-    console.error('Error al generar QR DataURL:', err.message);
+    logEvent('Error al generar QR DataURL: ' + err.message);
   }
 
-  console.log('\n========================================================');
-  console.log('📲 ESCANEA ESTE CODIGO QR CON TU WHATSAPP PARA VINCULAR:');
-  console.log('========================================================\n');
+  logEvent('📲 [WhatsApp QR] Nuevo código QR generado y listo para escanear.');
   qrcodeTerminal.generate(qr, { small: true });
-  console.log('\n👉 Abre WhatsApp en tu celular > Dispositivos vinculados > Vincular un dispositivo.\n');
 });
 
 // Evento: Autenticacion exitosa
 client.on('authenticated', () => {
-  console.log('🔐 [WhatsApp] Sesion autenticada correctamente.');
+  logEvent('🔐 [WhatsApp] ¡Sesión autenticada correctamente!');
   latestQR = null;
   latestQRDataURL = null;
 });
 
 // Evento: Fallo de autenticacion
 client.on('auth_failure', (msg) => {
-  console.error('❌ [WhatsApp] Fallo de autenticacion:', msg);
+  logEvent('❌ [WhatsApp] Fallo de autenticación: ' + JSON.stringify(msg));
   isClientReady = false;
   latestQRDataURL = null;
 });
@@ -97,19 +103,20 @@ client.on('ready', () => {
   isClientReady = true;
   latestQR = null;
   latestQRDataURL = null;
-  console.log('✅ [WhatsApp] ¡Cliente listo y conectado 100% para enviar mensajes!');
+  loadingPercent = 0;
+  logEvent('✅ [WhatsApp] ¡Cliente listo y conectado 100% para enviar mensajes!');
 });
 
 // Evento: Cargando chats / sincronización
 client.on('loading_screen', (percent, message) => {
   loadingPercent = percent;
   loadingMessage = message;
-  console.log(`⏳ [WhatsApp] Sincronizando chats: ${percent}% - ${message}`);
+  logEvent(`⏳ [WhatsApp] Sincronizando chats: ${percent}% - ${message}`);
 });
 
 // Evento: Sesión remota respaldada en Neon
 client.on('remote_session_saved', () => {
-  console.log('🎉 [WhatsApp] ¡Sesión remota respaldada exitosamente en Neon PostgreSQL!');
+  logEvent('🎉 [WhatsApp] ¡Sesión remota respaldada exitosamente en Neon PostgreSQL!');
 });
 
 // Evento: Desconexion
@@ -117,7 +124,7 @@ client.on('disconnected', (reason) => {
   isClientReady = false;
   latestQRDataURL = null;
   loadingPercent = 0;
-  console.warn('⚠️ [WhatsApp] Cliente desconectado. Motivo:', reason);
+  logEvent('⚠️ [WhatsApp] Cliente desconectado. Motivo: ' + reason);
 });
 
 /**
@@ -180,6 +187,10 @@ function getLoadingState() {
   return null;
 }
 
+function getRecentLogs() {
+  return recentLogs;
+}
+
 module.exports = {
   client,
   initWhatsApp,
@@ -187,5 +198,6 @@ module.exports = {
   isReady,
   getLatestQR,
   getLatestQRDataURL,
-  getLoadingState
+  getLoadingState,
+  getRecentLogs
 };
