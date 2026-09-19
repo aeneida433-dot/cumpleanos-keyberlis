@@ -12,16 +12,29 @@ if (fs.existsSync('/etc/secrets/.env')) {
   require('dotenv').config({ override: true });
 }
 
-const NEON_CONNECTION_STRING = 'postgresql://neondb_owner:npg_fHcj1Z8QSxCh@ep-crimson-breeze-b5y4whea-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require';
+const NEON_CONNECTION_STRING = 'postgresql://neondb_owner:npg_fHcj1Z8QSxCh@ep-crimson-breeze-b5y4whea-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=verify-full';
 
-const connectionString = (process.env.DATABASE_URL && process.env.DATABASE_URL.trim() !== '')
-  ? process.env.DATABASE_URL
+let rawConnectionString = (process.env.DATABASE_URL && process.env.DATABASE_URL.trim() !== '')
+  ? process.env.DATABASE_URL.trim()
   : NEON_CONNECTION_STRING;
 
-// Configuración de conexión con SSL para Neon
+// Ajuste automático de SSL para Neon: reemplaza sslmode=require o agrega sslmode=verify-full
+// para eliminar de raíz el warning de pg y forzar verificación estricta de certificados en producción
+let connectionString = rawConnectionString;
+if (connectionString.includes('sslmode=require')) {
+  connectionString = connectionString.replace('sslmode=require', 'sslmode=verify-full');
+} else if (connectionString.includes('sslmode=prefer')) {
+  connectionString = connectionString.replace('sslmode=prefer', 'sslmode=verify-full');
+} else if (connectionString.includes('sslmode=verify-ca')) {
+  connectionString = connectionString.replace('sslmode=verify-ca', 'sslmode=verify-full');
+} else if (!connectionString.includes('sslmode=')) {
+  connectionString += (connectionString.includes('?') ? '&' : '?') + 'sslmode=verify-full';
+}
+
+// Configuración de conexión con SSL estricto para Neon
 const pool = new Pool({
   connectionString: connectionString,
-  ssl: { rejectUnauthorized: false },
+  ssl: { rejectUnauthorized: true },
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
