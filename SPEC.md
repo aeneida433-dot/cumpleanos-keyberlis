@@ -1,15 +1,15 @@
-﻿# Especificación Técnica Definitiva: Sistema de Invitación Digital y Automatización 15 Años (Keyberlis)
+# Especificación Técnica Definitiva: Sistema de Invitación Digital y Automatización 15 Años (Keyberlis)
 
 **Document ID:** SPEC-KEYBERLIS-15  
-**Version:** 1.0.0  
-**Stack:** Node.js (v20+ LTS), Express, Neon PostgreSQL, @whiskeysockets/baileys, node-cron, Render, UptimeRobot  
-**Status:** DRAFT FOR APPROVAL  
+**Version:** 2.0.0  
+**Stack:** Node.js (v20+ LTS), Express, Neon PostgreSQL, whatsapp-web.js (Puppeteer optimizado con RemoteAuth), node-cron, Render Free Tier, UptimeRobot  
+**Status:** APPROVED & IMPLEMENTED  
 
 ---
 
 ## 1. Resumen Ejecutivo y Objetivos
 
-El sistema tiene como objetivo centralizar la confirmación de asistencia (RSVP) para la fiesta de 15 años de **Keyberlis** (Sábado 07 de Noviembre de 2026, 21:00 a 06:00 en French 10551), almacenar los registros en una base de datos PostgreSQL Serverless en **Neon**, mantener el servicio activo 24/7 en el tier gratuito de **Render** mediante **UptimeRobot**, y proveer un motor automatizado de **WhatsApp** para recordatorios programados el **6 de Noviembre a las 12:00 PM** con alias de regalo (`key.2710`).
+El sistema centraliza la confirmación de asistencia (RSVP) para la fiesta de 15 años de **Keyberlis** (Sábado 07 de Noviembre de 2026), almacena los registros de forma idempotente y agrupable por familia en una base de datos PostgreSQL Serverless en **Neon**, mantiene el servicio activo 24/7 en el tier gratuito de **Render** mediante **UptimeRobot**, y provee un motor de **WhatsApp** para recordatorios programados el **6 de Noviembre a las 12:00 PM** con agrupación familiar, cola anti-ban (4 a 8 segundos de jitter) y alias de regalo oficial (`cumpleanos2710`).
 
 ---
 
@@ -18,34 +18,37 @@ El sistema tiene como objetivo centralizar la confirmación de asistencia (RSVP)
 ```mermaid
 graph TD
     A[Frontend Web: index.html] -->|POST /api/rsvp| B[API Server: Express.js]
-    Uptime[UptimeRobot Monitor] -->|GET /ping| B
-    B -->|Conexión Pooling| C[(Neon PostgreSQL: tabla 'invitados')]
-    B -->|Gestión de Sesión & QR| D[Módulo WhatsApp: Baileys]
+    Uptime[UptimeRobot Monitor] -->|GET /ping cada 5 min| B
+    Admin[Admin / Uptime / Webhook] -->|POST /api/admin/forzar-recordatorio?token=cumpleanos2710| B
+    B -->|Conexión SSL Pooling| C[(Neon PostgreSQL: tabla 'invitados')]
+    B -->|Persistencia de Sesión| C
+    B -->|Gestión de Sesión & QR| D[Módulo WhatsApp: whatsapp-web.js RemoteAuth]
     E[Cron Scheduler: node-cron] -->|Disparo 06-Nov 12:00 PM| C
-    E -->|Envío de Recordatorios en Cola| D
-    D -->|Mensajería WhatsApp| Guests[Teléfonos de Invitados]
+    E -->|Envío de Recordatorios Agrupados| D
+    D -->|Mensajería WhatsApp E.164| Guests[Teléfonos de Invitados Argentina]
 ```
 
 | Módulo ID | Responsabilidad | Dependencias |
 |---|---|---|
-| `db-neon` | Esquema DDL, conexión segura SSL, queries de inserción y consulta | Neon Postgres |
-| `api-server` | Endpoints REST (`/api/rsvp`, `/ping`), validación Zod, middleware CORS | `db-neon` |
-| `whatsapp-engine` | Autenticación multi-device QR, socket keepalive, despacho de mensajes con delay | Sistema de archivos local / multi-auth |
-| `reminder-cron` | Temporizador programado para el 06-Nov 12:00 PM, cola de despacho secuencial | `db-neon`, `whatsapp-engine` |
+| `db-neon` | Esquema DDL, conexión SSL, soporte de múltiples invitados por teléfono `UNIQUE(nombre, telefono)` | Neon Postgres (`pg`) |
+| `phone-normalizer` | Validación estricta E.164 Argentina (13 dígitos `54911xxxxxxxx`), rechazo 400 | — |
+| `api-server` | Endpoints REST (`/api/rsvp`, `/ping`, `/api/admin/forzar-recordatorio`), CORS, Cache-Control | `db-neon`, `phone-normalizer` |
+| `whatsapp-engine` | Autenticación multi-device QR, RemoteAuth persistido en Neon (`whatsapp_session`), flags de bajo consumo RAM (<512MB) | `db-neon`, Chrome Linux |
+| `reminder-cron` | Temporizador 06-Nov 12:00 PM (`America/Buenos_Aires`), agrupación familiar, cola secuencial 4-8s jitter | `db-neon`, `whatsapp-engine` |
 
 ---
 
 ## 3. Decisiones de Arquitectura y Supuestos
 
-### 3.1. Elección de Motor WhatsApp: Baileys vs Puppeteer
-> [!IMPORTANT]
-> **Decisión Crítica para Render Free Tier:**
-> En el plan gratuito de Render, el límite de memoria RAM es de **512 MB**. Las librerías basadas en navegador headless (como `whatsapp-web.js` con Puppeteer/Chromium) consumen entre 400 MB y 700 MB, provocando caídas por *Out Of Memory (OOM)*.
-> Por ello, se especifica `@whiskeysockets/baileys`, el cual se comunica directamente mediante WebSockets sin navegador, consumiendo apenas **~45 MB de RAM**, garantizando estabilidad continua en Render.
+### 3.1. Optimización para Render Free Tier (<512MB RAM)
+- Chromium configurado con flags de mínima huella de memoria: `--no-sandbox`, `--disable-setuid-sandbox`, `--disable-dev-shm-usage`, `--disable-gpu`, `--disable-blink-features=AutomationControlled`.
+- Sesión persistida remotamente en Neon Postgres a través de `lib/pgStore.js` (tabla `whatsapp_session`), evitando la pérdida de sesión ante reinicios del contenedor efímero.
+- Manejadores globales `process.on('unhandledRejection')` y `process.on('uncaughtException')` para evitar reinicios por promesas no capturadas.
 
 ### 3.2. Zona Horaria y Precisión
-- Zona horaria de referencia: `America/Argentina/Buenos_Aires` (o timezone local del evento `-03:00`).
-- Disparo del recordatorio: `2026-11-06 12:00:00 UTC-3`.
+- Zona horaria de referencia: `America/Buenos_Aires`.
+- Disparo oficial del recordatorio: `2026-11-06 12:00:00 UTC-3`.
+- Alias de regalo: `cumpleanos2710` (Mercado Pago).
 
 ---
 
@@ -55,25 +58,38 @@ graph TD
 ```sql
 CREATE TABLE IF NOT EXISTS invitados (
     id SERIAL PRIMARY KEY,
-    nombre VARCHAR(120) NOT NULL,
-    telefono VARCHAR(30) NOT NULL,
-    verificado BOOLEAN DEFAULT FALSE,
-    fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_invitados_telefono UNIQUE (telefono)
+    nombre VARCHAR(150) NOT NULL,
+    telefono VARCHAR(20) NOT NULL,
+    recordatorio_enviado BOOLEAN DEFAULT FALSE,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Migración: eliminar restricciones de teléfono único para permitir registro familiar
+ALTER TABLE invitados DROP CONSTRAINT IF EXISTS invitados_telefono_key;
+ALTER TABLE invitados DROP CONSTRAINT IF EXISTS uq_invitados_telefono;
+ALTER TABLE invitados DROP CONSTRAINT IF EXISTS unique_nombre_telefono;
+ALTER TABLE invitados ADD CONSTRAINT unique_nombre_telefono UNIQUE (nombre, telefono);
+
+-- Índices de consulta rápida
 CREATE INDEX IF NOT EXISTS idx_invitados_telefono ON invitados(telefono);
-CREATE INDEX IF NOT EXISTS idx_invitados_verificado ON invitados(verificado);
+CREATE INDEX IF NOT EXISTS idx_invitados_recordatorio ON invitados(recordatorio_enviado);
+
+-- Tabla para persistencia de sesión de WhatsApp (RemoteAuth en Neon)
+CREATE TABLE IF NOT EXISTS whatsapp_session (
+    id VARCHAR(100) PRIMARY KEY,
+    data BYTEA NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
 ### 4.2. Contrato de Datos (`Invitado`)
 | Campo | Tipo | Nulo | Default | Descripción |
 |---|---|---|---|---|
 | `id` | `INTEGER` (Serial) | No | Auto | Clave primaria |
-| `nombre` | `VARCHAR(120)` | No | - | Nombre y apellido del invitado |
-| `telefono` | `VARCHAR(30)` | No | - | Número normalizado en formato E.164 (ej: `54911xxxxxxxx`) |
-| `verificado`| `BOOLEAN` | No | `false` | Indica si confirmó formalmente |
-| `fecha_registro` | `TIMESTAMPTZ` | No | `NOW()` | Timestamp con zona horaria de creación |
+| `nombre` | `VARCHAR(150)` | No | - | Nombre y apellido del invitado |
+| `telefono` | `VARCHAR(20)` | No | - | Número normalizado en formato E.164 (exactamente 13 dígitos: `54911xxxxxxxx`) |
+| `recordatorio_enviado`| `BOOLEAN` | No | `false` | Indica si ya se le despachó el recordatorio |
+| `fecha_registro` | `TIMESTAMP` | No | `CURRENT_TIMESTAMP` | Fecha de creación/actualización |
 
 ---
 
@@ -82,136 +98,100 @@ CREATE INDEX IF NOT EXISTS idx_invitados_verificado ON invitados(verificado);
 ### 5.1. Endpoint: Registrar Asistencia
 - **Ruta:** `POST /api/rsvp`
 - **Headers:** `Content-Type: application/json`
-- **Contrato de Solicitud (Zod Schema):**
-```typescript
-interface RSVPRequest {
-  nombre: string;     // min 2 caracteres, max 120
-  telefono: string;   // solo dígitos, min 8, max 20 caracteres (normalizado)
-}
-```
-- **Ejemplo Payload:**
+- **Contrato de Solicitud:**
 ```json
 {
-  "nombre": "Carlos Gómez",
-  "telefono": "5491123456789"
+  "nombre": "Juan Pérez",
+  "telefono": "1161034151",
+  "attending": true
 }
 ```
-
-- **Respuestas:**
+- **Lógica de Validación:**
+  - `attending === false`: Responde `200 OK` `{ success: true, saved: false, message: "..." }` sin guardar en DB.
+  - `nombre`: Mínimo 2 caracteres, máximo 150 caracteres.
+  - `telefono`: Limpieza de espacios, guiones y símbolos. Remoción de prefijos `0` y `15`. Validación de que el resultado sea de **13 dígitos exactos** comenzando con `549` (`54911xxxxxxxx`).
+  - Si el teléfono es inválido o incompleto: Retorna **HTTP 400 Bad Request**:
+    ```json
+    {
+      "success": false,
+      "error": "El número de teléfono no es válido para Argentina. Debe contener código de área y celular (13 dígitos: 54911xxxxxxxx)."
+    }
+    ```
+- **Respuestas Exitosas:**
   - `201 Created`:
   ```json
   {
     "success": true,
-    "message": "Registro completado con éxito",
+    "saved": true,
+    "message": "Confirmación registrada exitosamente",
     "data": {
-      "id": 14,
-      "nombre": "Carlos Gómez",
-      "telefono": "5491123456789",
-      "verificado": false,
-      "fecha_registro": "2026-09-16T15:30:00.000Z"
-    }
-  }
-  ```
-  - `409 Conflict` (Teléfono ya registrado previamente - Idempotencia):
-  ```json
-  {
-    "success": true,
-    "message": "El invitado ya se encuentra registrado",
-    "data": { "id": 14, "nombre": "Carlos Gómez", "telefono": "5491123456789" }
-  }
-  ```
-  - `422 Unprocessable Entity` (Error de validación):
-  ```json
-  {
-    "success": false,
-    "error": {
-      "code": "VALIDATION_ERROR",
-      "message": "Datos inválidos",
-      "details": [
-        { "field": "telefono", "issue": "El formato del teléfono es inválido" }
-      ]
+      "id": 1,
+      "nombre": "Juan Pérez",
+      "telefono": "5491161034151",
+      "recordatorio_enviado": false,
+      "fecha_registro": "2026-09-19T14:00:00.000Z"
     }
   }
   ```
 
-### 5.2. Endpoint: Ping / Keep-Alive (UptimeRobot)
+### 5.2. Endpoint Administrativo de Forzado de Recordatorios
+- **Ruta:** `POST /api/admin/forzar-recordatorio?token=cumpleanos2710`
+- **Validación:**
+  - Si `req.query.token !== 'cumpleanos2710'`: Retorna **HTTP 401 Unauthorized**:
+    ```json
+    { "success": false, "error": "Unauthorized: Token inválido" }
+    ```
+  - Si es correcto: Dispara asíncronamente el flujo de recordatorios y responde de inmediato con **HTTP 200 OK**:
+    ```json
+    { "success": true, "message": "Disparo de recordatorios iniciado asíncronamente." }
+    ```
+
+### 5.3. Endpoint Keep-Alive (UptimeRobot)
 - **Ruta:** `GET /ping`
-- **Propósito:** Responder inmediatamente con status HTTP 200 cada 5 o 10 minutos para evitar que Render congele el contenedor.
-- **Respuesta `200 OK`:**
+- **Propósito:** Responder HTTP 200 cada 5 minutos para mantener despierto el contenedor en Render.
+- **Respuesta:**
 ```json
 {
   "status": "healthy",
-  "service": "keyberlis-15-backend",
+  "service": "cumpleanos-keyberlis",
+  "whatsappReady": true,
   "uptime": 86400,
-  "timestamp": "2026-09-16T15:30:00.000Z"
+  "timestamp": "2026-09-19T14:00:00.000Z"
 }
 ```
 
-### 5.3. Endpoints Administrativos de WhatsApp
-- `GET /api/whatsapp/qr`: Genera y sirve el código QR de vinculación en pantalla o imagen PNG para sincronizar el WhatsApp de la quinceañera.
-- `GET /api/whatsapp/status`: Devuelve `{ "connected": true, "user": "..." }` o `{ "connected": false }`.
-- `POST /api/whatsapp/test-reminder`: Permite al anfitrión probar el envío con un único número de control antes de la fecha oficial.
-
 ---
 
-## 6. Módulo de Automatización de WhatsApp
+## 6. Lógica del Cron Job y Agrupación Familiar (`cron.js`)
 
-1. **Persistencia de Sesión (`useMultiFileAuthState`):**
-   - Las credenciales de sesión se guardan de manera segura en un directorio local (`./auth_info_baileys/`).
-   - El socket reconecta automáticamente ante caídas de red o reinicios de contenedor.
-2. **Generación de QR en Vivo:**
-   - Si no existe sesión activa, se captura el evento `connection.update` con el parámetro `qr` y se expone en la web administrativa para escanear desde la app de WhatsApp.
-3. **Mecanismo Anti-Ban / Rate Limiting:**
-   - Pausa aleatoria controlada de **3 a 7 segundos** entre cada mensaje enviado durante la campaña de recordatorios para evitar bloqueos por spam masivo.
+### 6.1. Especificación del Trigger
+- **Expresión Cron:** `0 12 6 11 *` (06 de Noviembre, 12:00 PM).
+- **Timezone:** `America/Buenos_Aires`.
 
----
-
-## 7. Programador de Recordatorios (Cron Job)
-
-### 7.1. Especificación del Trigger
-- **Expresión Cron:** `0 12 6 11 *` (Minuto 0, Hora 12, Día 6, Mes 11).
-- **Timezone:** `America/Argentina/Buenos_Aires`.
-- **Timestamp ISO:** `2026-11-06T12:00:00-03:00`.
-
-### 7.2. Lógica de Ejecución
-1. Conectar a Neon PostgreSQL y ejecutar:
-   ```sql
-   SELECT id, nombre, telefono FROM invitados ORDER BY id ASC;
-   ```
-2. Iterar la lista en cola secuencial con rate limiting.
-3. Formatear y despachar el mensaje:
+### 6.2. Agrupación Familiar y Formato de Mensaje
+1. Consulta en Neon: `SELECT id, nombre, telefono FROM invitados WHERE recordatorio_enviado = false ORDER BY id ASC;`
+2. Agrupación en memoria:
+   - Se agrupan los IDs y nombres correspondientes a cada número de teléfono único.
+   - Formateo de nombres:
+     - 1 persona: `Juan`
+     - 2 personas: `Juan y María`
+     - 3+ personas: `Juan, María y Sofía`
+3. Mensaje a despachar:
    ```text
-   ¡Hola! Te recordamos que mañana es la gran fiesta de 15 años. Por favor, confirma tu asistencia. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: [key.2710]
+   ¡Hola [NOMBRES]! Les recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirmen su asistencia si aún no lo han hecho. Si desean realizar un presente, pueden hacerlo en efectivo a nuestro alias: cumpleanos2710
    ```
-4. Registrar log del estado de entrega (`SENT`, `FAILED`).
+4. **Cola Secuencial Anti-Ban:** Pausa aleatoria (jitter) de 4 a 8 segundos (`4000 + Math.random() * 4000`) entre cada número telefónico procesado.
+5. **Persistencia Inmediata:** Actualización atómica en Neon apenas concluye cada despacho con éxito:
+   ```sql
+   UPDATE invitados SET recordatorio_enviado = true WHERE id = ANY($1::int[]);
+   ```
 
 ---
 
-## 8. Despliegue en Render y Configuración de UptimeRobot
+## 7. Criterios de Aceptación y Éxito
 
-### 8.1. Variables de Entorno (`.env`)
-```bash
-PORT=3000
-NODE_ENV=production
-DATABASE_URL=postgresql://neondb_owner:xxxx@ep-xxxx.neon.tech/neondb?sslmode=require
-TIMEZONE=America/Argentina/Buenos_Aires
-ADMIN_TOKEN=secret_token_keyberlis
-```
-
-### 8.2. Comandos de Render
-- **Build Command:** `npm install`
-- **Start Command:** `node server.js`
-
-### 8.3. Configuración de UptimeRobot
-- **Tipo de Monitor:** `HTTP(s)`
-- **URL:** `https://tu-app-en-render.onrender.com/ping`
-- **Intervalo de Monitoreo:** Cada `5 minutos` (evita los 15 minutos de inactividad de Render).
-
----
-
-## 9. Criterios de Aceptación y Éxito (Success Criteria)
-
-1. **Persistencia Neon:** Un envío desde el formulario web almacena nombre, teléfono, `verificado = false` y timestamp en Neon.
-2. **Uptime 24/7:** La ruta `/ping` responde en `< 50ms` manteniendo el servicio despierto en Render.
-3. **Escaneo QR de WhatsApp:** El anfitrión puede escanear el QR desde su teléfono y la sesión se mantiene activa.
-4. **Despacho del 6 de Noviembre:** Al simular o alcanzar el 6 de noviembre a las 12:00 PM, el script consulta todos los invitados de Neon y envía el mensaje con el alias `key.2710`.
+1. **Normalización:** Cualquier variación válida (`1161034151`, `011 15 6103 4151`, `+54 9 11 6103-4151`) produce `5491161034151`. Números incompletos o inválidos reciben HTTP 400.
+2. **Múltiples Invitados por Teléfono:** Dos o más invitados pueden registrarse con el mismo teléfono sin colisión `UNIQUE (nombre, telefono)`.
+3. **Agrupación en Recordatorio:** En el cron job, un teléfono con múltiples invitados recibe un solo mensaje WhatsApp con los nombres de todos los integrantes.
+4. **Anti-Ban:** Existe una pausa aleatoria de 4 a 8 segundos entre cada despacho a WhatsApp.
+5. **Seguridad Administrativa:** `/api/admin/forzar-recordatorio` exige `token=cumpleanos2710` y rechaza con 401 si no coincide.

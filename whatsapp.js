@@ -1,6 +1,7 @@
 /**
- * Modulo de Cliente de WhatsApp (whatsapp-web.js)
- * Proyecto: Invitacion 15 Anos Keyberlis
+ * Módulo de Cliente de WhatsApp (whatsapp-web.js)
+ * Optimizado estrictamente para Render Free Tier (<512MB RAM) y Neon PostgreSQL
+ * Proyecto: Invitación 15 Años Keyberlis
  */
 
 const { Client, RemoteAuth } = require('whatsapp-web.js');
@@ -25,7 +26,7 @@ function logEvent(msg) {
   console.log(msg);
 }
 
-// Ubicar ejecutable de Chrome en cache local de Puppeteer si existe
+// Ubicar ejecutable de Chrome en cache local de Puppeteer si existe (Render / Linux)
 function getChromeExecutablePath() {
   if (process.env.PUPPETEER_EXECUTABLE_PATH) {
     return process.env.PUPPETEER_EXECUTABLE_PATH;
@@ -41,12 +42,12 @@ function getChromeExecutablePath() {
   return undefined;
 }
 
-// Configuración de almacenamiento remoto en Neon PostgreSQL
+// Configuración de almacenamiento remoto de sesión en Neon PostgreSQL
 const store = new PGStore({
   dataPath: path.join(__dirname, '.wwebjs_auth')
 });
 
-// Configuración optimizada de Puppeteer para Render y servidores Linux
+// Configuración optimizada de Puppeteer para Render (<512MB RAM)
 const client = new Client({
   authStrategy: new RemoteAuth({
     store: store,
@@ -67,6 +68,9 @@ const client = new Client({
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--disable-gpu',
+      '--disable-extensions',
+      '--disable-default-apps',
+      '--js-flags=--max-old-space-size=256',
       '--disable-blink-features=AutomationControlled'
     ]
   }
@@ -85,14 +89,14 @@ client.on('qr', async (qr) => {
   qrcodeTerminal.generate(qr, { small: true });
 });
 
-// Evento: Autenticacion exitosa
+// Evento: Autenticación exitosa
 client.on('authenticated', () => {
   logEvent('🔐 [WhatsApp] ¡Sesión autenticada correctamente!');
   latestQR = null;
   latestQRDataURL = null;
 });
 
-// Evento: Fallo de autenticacion
+// Evento: Fallo de autenticación
 client.on('auth_failure', (msg) => {
   logEvent('❌ [WhatsApp] Fallo de autenticación: ' + JSON.stringify(msg));
   isClientReady = false;
@@ -108,19 +112,19 @@ client.on('ready', () => {
   logEvent('✅ [WhatsApp] ¡Cliente listo y conectado 100% para enviar mensajes!');
 });
 
-// Evento: Cargando chats / sincronización
+// Evento: Cargando chats / sincronización progresiva
 client.on('loading_screen', (percent, message) => {
   loadingPercent = percent;
   loadingMessage = message;
   logEvent(`⏳ [WhatsApp] Sincronizando chats: ${percent}% - ${message}`);
 });
 
-// Evento: Sesión remota respaldada en Neon
+// Evento: Sesión remota respaldada en Neon PostgreSQL
 client.on('remote_session_saved', () => {
   logEvent('🎉 [WhatsApp] ¡Sesión remota respaldada exitosamente en Neon PostgreSQL!');
 });
 
-// Evento: Desconexion
+// Evento: Desconexión
 client.on('disconnected', (reason) => {
   isClientReady = false;
   latestQRDataURL = null;
@@ -132,15 +136,15 @@ client.on('disconnected', (reason) => {
  * Inicializa el cliente de WhatsApp
  */
 function initWhatsApp() {
-  console.log('🤖 [WhatsApp] Iniciando cliente de automatizacion con RemoteAuth en Neon...');
+  console.log('🤖 [WhatsApp] Iniciando cliente de automatización con RemoteAuth en Neon...');
   client.initialize().catch((err) => {
     console.error('❌ [WhatsApp Error]:', err.message);
   });
 }
 
 /**
- * Envia un mensaje a un numero telefonico normalizado (E.164)
- * @param {string} phone - Numero normalizado (ej: 54911xxxxxxxx)
+ * Envía un mensaje a un número telefónico normalizado (E.164 Argentina)
+ * @param {string} phone - Número normalizado (ej: 54911xxxxxxxx)
  * @param {string} message - Texto del mensaje
  * @returns {Promise<{ success: boolean, messageId?: string, error?: string }>}
  */
@@ -148,7 +152,7 @@ async function enviarMensaje(phone, message) {
   if (!isClientReady) {
     return {
       success: false,
-      error: 'El cliente de WhatsApp no esta conectado aun. Escanee el codigo QR.'
+      error: 'El cliente de WhatsApp no está conectado aún. Escanee el código QR.'
     };
   }
 

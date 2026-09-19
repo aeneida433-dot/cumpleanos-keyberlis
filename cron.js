@@ -1,6 +1,6 @@
 /**
- * Modulo de Recordatorios Programados (Cron Job)
- * Proyecto: Invitacion 15 Anos Keyberlis
+ * Módulo de Recordatorios Programados (Cron Job)
+ * Proyecto: Invitación 15 Años Keyberlis
  */
 
 const cron = require('node-cron');
@@ -9,75 +9,129 @@ const { enviarMensaje, isReady } = require('./whatsapp');
 require('dotenv').config();
 
 const TIMEZONE = process.env.TIMEZONE || 'America/Argentina/Buenos_Aires';
-const ALIAS = process.env.ALIAS_REGALO || 'key.2710';
+const ALIAS = process.env.ALIAS_REGALO || 'cumpleanos2710';
 
-// Utilidad para retardo (pausa de seguridad anti-spam)
+// Utilidad para retardo (pausa de seguridad anti-ban)
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Ejecuta el envio masivo de recordatorios a todos los invitados registrados en Neon
- * @returns {Promise<{ total: number, enviados: number, fallidos: number }>}
+ * Formatea una lista de nombres de invitados con comas y conjunción 'y'
+ * Ejemplos:
+ *  - ['Juan'] -> 'Juan'
+ *  - ['Juan', 'María'] -> 'Juan y María'
+ *  - ['Juan', 'María', 'Sofía'] -> 'Juan, María y Sofía'
+ */
+function formatNames(names) {
+  if (!names || names.length === 0) return 'familia y amigos';
+  const cleanNames = names.map(n => n.trim()).filter(Boolean);
+  if (cleanNames.length === 1) return cleanNames[0];
+  if (cleanNames.length === 2) return `${cleanNames[0]} y ${cleanNames[1]}`;
+  return `${cleanNames.slice(0, -1).join(', ')} y ${cleanNames[cleanNames.length - 1]}`;
+}
+
+/**
+ * Construye el mensaje cálido de recordatorio para un invitado individual o un grupo familiar
+ */
+function buildReminderMessage(names, alias = ALIAS) {
+  const nombresFormatted = formatNames(names);
+  if (names && names.length > 1) {
+    return `¡Hola ${nombresFormatted}! Les recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirmen su asistencia si aún no lo han hecho. Si desean realizar un presente, pueden hacerlo en efectivo a nuestro alias: ${alias}`;
+  }
+  return `¡Hola ${nombresFormatted}! Te recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirma tu asistencia si aún no lo has hecho. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: ${alias}`;
+}
+
+/**
+ * Ejecuta el envío masivo de recordatorios agrupados por teléfono con protección Anti-Ban
+ * @returns {Promise<{ totalInvitados: number, totalTelefonos: number, enviados: number, fallidos: number }>}
  */
 async function ejecutarRecordatorios() {
   console.log('\n========================================================');
-  console.log('⏰ [Cron Job] INICIANDO ENVIO DE RECORDATORIOS (15 ANOS)');
+  console.log('⏰ [Cron Job] INICIANDO ENVÍO DE RECORDATORIOS (15 AÑOS KEYBERLIS)');
   console.log('========================================================');
 
   if (!isReady()) {
-    console.error('❌ [Cron Error] No se puede enviar: WhatsApp no esta conectado.');
-    return { total: 0, enviados: 0, fallidos: 0, error: 'WhatsApp desconectado' };
+    console.error('❌ [Cron Error] No se puede enviar: WhatsApp no está conectado.');
+    return {
+      totalInvitados: 0,
+      totalTelefonos: 0,
+      enviados: 0,
+      fallidos: 0,
+      error: 'WhatsApp no está conectado'
+    };
   }
 
   try {
-    const dbResult = await query('SELECT id, nombre, telefono, verificado FROM invitados WHERE recordatorio_enviado = false ORDER BY id ASC');
+    const dbResult = await query(
+      'SELECT id, nombre, telefono FROM invitados WHERE recordatorio_enviado = false ORDER BY id ASC'
+    );
     const invitados = dbResult.rows;
 
-    console.log(`📋 [Cron] Se encontraron ${invitados.length} invitados confirmados pendientes de recordatorio.`);
+    if (invitados.length === 0) {
+      console.log('ℹ️ [Cron] No hay invitados pendientes de recordatorio en Neon.');
+      return { totalInvitados: 0, totalTelefonos: 0, enviados: 0, fallidos: 0 };
+    }
 
-    let enviados = 0;
-    let fallidos = 0;
+    // Regla de Agrupación Familiar: Agrupar invitados por número de teléfono
+    const phoneGroups = new Map();
+    for (const inv of invitados) {
+      if (!phoneGroups.has(inv.telefono)) {
+        phoneGroups.set(inv.telefono, {
+          ids: [],
+          names: []
+        });
+      }
+      const group = phoneGroups.get(inv.telefono);
+      group.ids.push(inv.id);
+      group.names.push(inv.nombre);
+    }
 
-    for (let i = 0; i < invitados.length; i++) {
-      const inv = invitados[i];
-      const mensaje = [
-        `¡Hola ${inv.nombre}! 🎉 Te recordamos que mañana es la gran fiesta de 15 años de Keyberlis. ¡Te esperamos con mucha alegría para festejar juntos hasta el amanecer! ✨`,
-        '',
-        `⏰ Horario: 21:00 a 6:00 hs`,
-        `📍 Lugar: French 10551`,
-        '',
-        `🎁 Si deseas hacernos un presente, te pedimos por favor que sea en efectivo a nuestro alias de Mercado Pago: [${ALIAS}]`,
-        '',
-        `¡Nos vemos mañana para celebrar esta noche mágica! 💖🪩`
-      ].join('\n');
+    const groups = Array.from(phoneGroups.entries());
+    console.log(`📋 [Cron] Se encontraron ${invitados.length} invitados pendientes agrupados en ${groups.length} teléfonos.`);
 
-      console.log(`\n📨 [${i + 1}/${invitados.length}] Enviando recordatorio a ${inv.nombre} (${inv.telefono})...`);
-      
-      const resultado = await enviarMensaje(inv.telefono, mensaje);
+    let totalEnviados = 0;
+    let totalFallidos = 0;
+
+    for (let i = 0; i < groups.length; i++) {
+      const [telefono, data] = groups[i];
+      const mensaje = buildReminderMessage(data.names, ALIAS);
+
+      console.log(`\n📨 [${i + 1}/${groups.length}] Enviando recordatorio consolidado a ${telefono} (${data.names.join(', ')})...`);
+
+      const resultado = await enviarMensaje(telefono, mensaje);
 
       if (resultado.success) {
-        enviados++;
-        await query('UPDATE invitados SET recordatorio_enviado = true, fecha_recordatorio = CURRENT_TIMESTAMP WHERE id = $1', [inv.id]);
-        console.log(`✅ Entregado y registrado en Neon para ${inv.nombre}`);
+        totalEnviados += data.ids.length;
+        // Persistencia inmediata: marcar a todos los integrantes como recordatorio_enviado = true
+        await query(
+          'UPDATE invitados SET recordatorio_enviado = true WHERE id = ANY($1::int[])',
+          [data.ids]
+        );
+        console.log(`✅ [Cron] Entregado con éxito y registrado en Neon para IDs: [${data.ids.join(', ')}]`);
       } else {
-        fallidos++;
-        console.error(`❌ Fallo el envio a ${inv.nombre}: ${resultado.error}`);
+        totalFallidos += data.ids.length;
+        console.error(`❌ [Cron Error] Falló el envío a ${telefono}: ${resultado.error}`);
       }
 
-      // Pausa aleatoria controlada entre 4 y 6 segundos entre envios (Anti-Ban)
-      if (i < invitados.length - 1) {
-        const pausa = Math.floor(Math.random() * 2000) + 4000;
-        console.log(`⏳ Esperando ${(pausa / 1000).toFixed(1)} segundos antes del proximo envio...`);
-        await sleep(pausa);
+      // Cola secuencial Anti-Ban: pausa aleatoria entre 4 y 8 segundos entre envíos
+      if (i < groups.length - 1) {
+        const jitter = Math.floor(Math.random() * 4000) + 4000; // 4000ms a 8000ms
+        console.log(`⏳ [Anti-Ban] Esperando ${(jitter / 1000).toFixed(1)} segundos antes del próximo envío...`);
+        await sleep(jitter);
       }
     }
 
     console.log('\n========================================================');
-    console.log(`🏁 [Cron Job Finalizado] Total pendientes procesados: ${invitados.length} | Enviados: ${enviados} | Fallidos: ${fallidos}`);
+    console.log(`🏁 [Cron Job Finalizado] Total invitados: ${invitados.length} | Familias/Teléfonos: ${groups.length} | Enviados: ${totalEnviados} | Fallidos: ${totalFallidos}`);
     console.log('========================================================\n');
 
-    return { total: invitados.length, enviados, fallidos };
+    return {
+      totalInvitados: invitados.length,
+      totalTelefonos: groups.length,
+      enviados: totalEnviados,
+      fallidos: totalFallidos
+    };
 
   } catch (error) {
     console.error('❌ [Cron Error Fatal]:', error.message);
@@ -89,7 +143,7 @@ async function ejecutarRecordatorios() {
  * Inicializa el Cron Job programado exactamente para el 6 de Noviembre a las 12:00 PM
  */
 function initCron() {
-  // Expresion cron: 0 12 6 11 * (Minuto 0, Hora 12, Dia 6, Mes 11 - Noviembre)
+  // Expresión cron: 0 12 6 11 * (Minuto 0, Hora 12, Día 6, Mes 11 - Noviembre)
   const cronExpression = '0 12 6 11 *';
 
   console.log(`📅 [Cron Scheduler] Programado para el 6 de Noviembre a las 12:00 PM (${TIMEZONE})`);
@@ -105,5 +159,7 @@ function initCron() {
 
 module.exports = {
   initCron,
-  ejecutarRecordatorios
+  ejecutarRecordatorios,
+  formatNames,
+  buildReminderMessage
 };

@@ -56,7 +56,7 @@ async function query(text, params) {
  * Inicializa la tabla 'invitados' e índices en Neon automáticamente al arrancar
  */
 async function initDB() {
-  if (!process.env.DATABASE_URL) {
+  if (!process.env.DATABASE_URL && !NEON_CONNECTION_STRING) {
     console.warn('⚠️ [DB Warning] DATABASE_URL no está definida. La base de datos no se inicializará.');
     return;
   }
@@ -64,20 +64,25 @@ async function initDB() {
   const ddl = `
     CREATE TABLE IF NOT EXISTS invitados (
       id SERIAL PRIMARY KEY,
-      nombre VARCHAR(120) NOT NULL,
-      telefono VARCHAR(30) NOT NULL UNIQUE,
-      verificado BOOLEAN DEFAULT FALSE,
+      nombre VARCHAR(150) NOT NULL,
+      telefono VARCHAR(20) NOT NULL,
       recordatorio_enviado BOOLEAN DEFAULT FALSE,
-      fecha_recordatorio TIMESTAMP WITH TIME ZONE,
-      fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Migraciones seguras si la tabla ya existía
+    -- Ajuste de columnas existentes si la tabla ya existía
+    ALTER TABLE invitados ALTER COLUMN nombre TYPE VARCHAR(150);
+    ALTER TABLE invitados ALTER COLUMN telefono TYPE VARCHAR(20);
     ALTER TABLE invitados ADD COLUMN IF NOT EXISTS recordatorio_enviado BOOLEAN DEFAULT FALSE;
-    ALTER TABLE invitados ADD COLUMN IF NOT EXISTS fecha_recordatorio TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE invitados ADD COLUMN IF NOT EXISTS fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+    -- Migraciones de restricciones seguras para permitir múltiples invitados por teléfono
+    ALTER TABLE invitados DROP CONSTRAINT IF EXISTS invitados_telefono_key;
+    ALTER TABLE invitados DROP CONSTRAINT IF EXISTS uq_invitados_telefono;
+    ALTER TABLE invitados DROP CONSTRAINT IF EXISTS unique_nombre_telefono;
+    ALTER TABLE invitados ADD CONSTRAINT unique_nombre_telefono UNIQUE (nombre, telefono);
 
     CREATE INDEX IF NOT EXISTS idx_invitados_telefono ON invitados(telefono);
-    CREATE INDEX IF NOT EXISTS idx_invitados_verificado ON invitados(verificado);
     CREATE INDEX IF NOT EXISTS idx_invitados_recordatorio ON invitados(recordatorio_enviado);
 
     -- Tabla para persistencia de sesión de WhatsApp (RemoteAuth en Neon)
@@ -90,7 +95,7 @@ async function initDB() {
 
   try {
     await query(ddl);
-    console.log('✅ [DB] Esquema e índices verificados/migrados en Neon con éxito.');
+    console.log('✅ [DB] Esquema e índices verificados/migrados en Neon con éxito (UNIQUE nombre + telefono).');
   } catch (err) {
     console.error('❌ [DB Error] Error al inicializar el esquema en Neon:', err.message);
     throw err;

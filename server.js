@@ -1,6 +1,6 @@
 /**
  * Servidor Backend Principal (Express + Neon PostgreSQL + WhatsApp + Cron)
- * Proyecto: Invitacion 15 Anos Keyberlis
+ * Proyecto: Invitación 15 Años Keyberlis
  */
 
 const express = require('express');
@@ -22,7 +22,7 @@ const { initCron, ejecutarRecordatorios } = require('./cron');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Protección contra caídas del proceso por excepciones asíncronas
+// Protección contra caídas del proceso por excepciones asíncronas en Node.js
 process.on('unhandledRejection', (reason, promise) => {
   console.warn('⚠️ [Proceso Protegido] Unhandled Rejection prevenido:', reason);
 });
@@ -67,7 +67,7 @@ app.post('/api/rsvp', async (req, res) => {
   try {
     const { nombre, telefono, attending } = req.body;
 
-    // Regla de Negocio: Si el invitado marca que NO asistirá, no se crea nada en Neon
+    // Si el invitado marca que NO asistirá, no se crea nada en Neon
     if (attending === false || attending === 'false') {
       console.log(`ℹ️ [RSVP] Invitado indicó que no asistirá: "${nombre || 'Sin nombre'}". No se registra en Neon.`);
       return res.status(200).json({
@@ -77,20 +77,20 @@ app.post('/api/rsvp', async (req, res) => {
       });
     }
 
-    // Validacion del nombre
+    // Validación del nombre
     if (!nombre || typeof nombre !== 'string' || nombre.trim().length < 2) {
-      return res.status(422).json({
+      return res.status(400).json({
         success: false,
-        error: 'Por favor ingresa un nombre y apellido valido (minimo 2 caracteres).'
+        error: 'Por favor ingresa un nombre y apellido válido (mínimo 2 caracteres).'
       });
     }
 
-    const cleanName = nombre.trim().slice(0, 120);
+    const cleanName = nombre.trim().slice(0, 150);
 
-    // Validacion y normalizacion del telefono (Argentina +54 9)
+    // Validación y normalización estricta del teléfono (Argentina +54 9, 13 dígitos)
     const phoneResult = normalizePhone(telefono);
     if (!phoneResult.valid) {
-      return res.status(422).json({
+      return res.status(400).json({
         success: false,
         error: phoneResult.error
       });
@@ -98,14 +98,13 @@ app.post('/api/rsvp', async (req, res) => {
 
     const normalizedPhone = phoneResult.formatted;
 
-    // Insercion o actualizacion idempotente en Neon PostgreSQL (solo confirmados "SÍ")
+    // Inserción con idempotencia sobre UNIQUE (nombre, telefono) en Neon
     const sql = [
-      'INSERT INTO invitados (nombre, telefono, verificado, recordatorio_enviado)',
-      'VALUES ($1, $2, false, false)',
-      'ON CONFLICT (telefono) DO UPDATE',
-      'SET nombre = EXCLUDED.nombre,',
-      '    fecha_registro = CURRENT_TIMESTAMP',
-      'RETURNING id, nombre, telefono, verificado, recordatorio_enviado, fecha_registro;'
+      'INSERT INTO invitados (nombre, telefono, recordatorio_enviado)',
+      'VALUES ($1, $2, false)',
+      'ON CONFLICT (nombre, telefono) DO UPDATE',
+      'SET fecha_registro = CURRENT_TIMESTAMP',
+      'RETURNING id, nombre, telefono, recordatorio_enviado, fecha_registro;'
     ].join('\n');
 
     const dbResult = await query(sql, [cleanName, normalizedPhone]);
@@ -114,7 +113,7 @@ app.post('/api/rsvp', async (req, res) => {
     return res.status(201).json({
       success: true,
       saved: true,
-      message: 'Confirmacion registrada exitosamente',
+      message: 'Confirmación registrada exitosamente',
       data: guest
     });
 
@@ -122,19 +121,47 @@ app.post('/api/rsvp', async (req, res) => {
     console.error('[RSVP Error]:', error);
     return res.status(500).json({
       success: false,
-      error: 'Error interno al registrar la confirmacion. Intente nuevamente.'
+      error: 'Error interno al registrar la confirmación. Intente nuevamente.'
     });
   }
 });
 
+// Función de autorización para panel administrativo general
 function isAuthorized(req) {
   const adminKey = req.headers['x-admin-key'] || req.query.key;
-  const expectedKey = process.env.ADMIN_KEY || 'keyberlis15';
-  return adminKey === expectedKey || adminKey === 'keyberlis15';
+  const expectedKey = process.env.ADMIN_KEY || 'clave_admin_keyberlis_2710';
+  return adminKey === expectedKey || adminKey === 'keyberlis15' || adminKey === 'cumpleanos2710';
 }
 
 // ========================================================
-// 3. ENDPOINT ADMINISTRATIVO: GET /api/invitados
+// 3. ENDPOINT ADMINISTRATIVO SEGURO: POST /api/admin/forzar-recordatorio
+// ========================================================
+app.post('/api/admin/forzar-recordatorio', (req, res) => {
+  const token = req.query.token;
+
+  if (token !== 'cumpleanos2710') {
+    console.warn(`🔒 [Seguridad] Intento no autorizado a /api/admin/forzar-recordatorio con token: "${token || 'ninguno'}"`);
+    return res.status(401).json({
+      success: false,
+      error: 'Unauthorized: Token de autorización inválido'
+    });
+  }
+
+  console.log('⚡ [Admin] Forzado manual de recordatorios autorizado con token cumpleanos2710.');
+
+  // Disparo asíncrono en segundo plano sin bloquear la respuesta HTTP
+  ejecutarRecordatorios().catch((err) => {
+    console.error('❌ [Admin Error] Error en la ejecución asíncrona de recordatorios:', err.message);
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: 'Flujo de envío de recordatorios disparado asíncronamente con éxito.'
+  });
+});
+
+// ========================================================
+// 4. ENDPOINT ADMINISTRATIVO: GET /api/invitados
 // ========================================================
 app.get('/api/invitados', async (req, res) => {
   if (!isAuthorized(req)) {
@@ -143,7 +170,7 @@ app.get('/api/invitados', async (req, res) => {
 
   try {
     const dbResult = await query(`
-      SELECT id, nombre, telefono, verificado, recordatorio_enviado, fecha_recordatorio, fecha_registro 
+      SELECT id, nombre, telefono, recordatorio_enviado, fecha_registro 
       FROM invitados 
       ORDER BY id DESC
     `);
@@ -158,7 +185,7 @@ app.get('/api/invitados', async (req, res) => {
 });
 
 // ========================================================
-// 4. ESTADO DE WHATSAPP CON QR: GET /api/whatsapp/status
+// 5. ESTADO DE WHATSAPP CON QR: GET /api/whatsapp/status
 // ========================================================
 app.get('/api/whatsapp/status', (req, res) => {
   res.json({
@@ -179,7 +206,7 @@ app.get('/api/debug/whatsapp', (req, res) => {
 });
 
 // ========================================================
-// 5. DISPARO MANUAL DE RECORDATORIOS: POST /api/admin/enviar-recordatorios
+// 6. DISPARO MANUAL DE RECORDATORIOS: POST /api/admin/enviar-recordatorios
 // ========================================================
 app.post('/api/admin/enviar-recordatorios', async (req, res) => {
   if (!isAuthorized(req)) {
@@ -199,7 +226,7 @@ app.post('/api/admin/enviar-recordatorios', async (req, res) => {
 });
 
 // ========================================================
-// 6. DISPARO DE RECORDATORIO DE PRUEBA: POST /api/test-reminder
+// 7. DISPARO DE RECORDATORIO DE PRUEBA: POST /api/test-reminder
 // ========================================================
 app.post('/api/test-reminder', async (req, res) => {
   if (!isAuthorized(req)) {
@@ -213,11 +240,11 @@ app.post('/api/test-reminder', async (req, res) => {
 
   const phoneRes = normalizePhone(telefono);
   if (!phoneRes.valid) {
-    return res.status(422).json({ success: false, error: phoneRes.error });
+    return res.status(400).json({ success: false, error: phoneRes.error });
   }
 
-  const alias = process.env.ALIAS_REGALO || 'key.2710';
-  const mensajePrueba = `¡Hola! Te recordamos que mañana es la gran fiesta de 15 años. Por favor, confirma tu asistencia. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: [${alias}]`;
+  const alias = process.env.ALIAS_REGALO || 'cumpleanos2710';
+  const mensajePrueba = `¡Hola! Te recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirma tu asistencia si aún no lo has hecho. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: ${alias}`;
 
   const resultado = await enviarMensaje(phoneRes.formatted, mensajePrueba);
   return res.json({
@@ -227,25 +254,27 @@ app.post('/api/test-reminder', async (req, res) => {
   });
 });
 
-// Arrancar servidor principal
-app.listen(PORT, async () => {
-  console.log(`\n[+] [Servidor] Activo y escuchando en el puerto ${PORT}`);
-  console.log(`[+] [URL Web] http://localhost:${PORT}`);
-  console.log(`[+] [Uptime Endpoint] http://localhost:${PORT}/ping`);
-  
-  try {
-    await initDB();
-  } catch (err) {
-    console.warn('[!] [Aviso] Continuando sin base de datos activa hasta configurar DATABASE_URL.');
-  }
+// Arrancar servidor principal solo si se ejecuta directamente
+if (require.main === module) {
+  app.listen(PORT, async () => {
+    console.log(`\n[+] [Servidor] Activo y escuchando en el puerto ${PORT}`);
+    console.log(`[+] [URL Web] http://localhost:${PORT}`);
+    console.log(`[+] [Uptime Endpoint] http://localhost:${PORT}/ping`);
+    
+    try {
+      await initDB();
+    } catch (err) {
+      console.warn('[!] [Aviso] Continuando sin base de datos activa hasta configurar DATABASE_URL.');
+    }
 
-  // Inicializar WhatsApp y Cron Job
-  try {
-    initWhatsApp();
-    initCron();
-  } catch (err) {
-    console.error('Error al inicializar servicios de fondo:', err.message);
-  }
-});
+    // Inicializar WhatsApp y Cron Job
+    try {
+      initWhatsApp();
+      initCron();
+    } catch (err) {
+      console.error('Error al inicializar servicios de fondo:', err.message);
+    }
+  });
+}
 
 module.exports = app;

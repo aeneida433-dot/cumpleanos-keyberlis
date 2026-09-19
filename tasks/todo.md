@@ -150,3 +150,23 @@
 - [x] Blueprint de infraestructura `render.yaml` con build command, start command y variables de entorno listo.
 - [x] Guía de despliegue paso a paso `README_DEPLOY.md` detallada para Render y Neon.
 - [x] Guía de monitorización continua `UPTIMEROBOT_SETUP.md` con ping de 5 minutos hacia `/ping` para mantener el contenedor activo 24/7 de forma 100% gratuita.
+
+---
+
+## Fase 6: Reglas de Negocio Definitivas (Spec-Driven Development)
+- [x] **Tarea 6.1: Migración DDL en Neon para Agrupación Familiar**
+  - Eliminar restricciones de teléfono único (`invitados_telefono_key`, `uq_invitados_telefono`).
+  - Agregar restricción `UNIQUE (nombre, telefono)` permitiendo múltiples personas con el mismo número telefónico.
+- [x] **Tarea 6.2: Normalización Telefónica E.164 Estricta (13 dígitos)**
+  - Limpieza de `0` inicial, `15` intermedio/inicial y caracteres especiales.
+  - Generación de formato E.164 `54911xxxxxxxx` (exactamente 13 dígitos) y respuesta HTTP 400 ante números inválidos.
+- [x] **Tarea 6.3: Agrupación Familiar y Cola Anti-Ban con Jitter en Cron Job**
+  - Agrupación en memoria de múltiples invitados bajo un mismo teléfono.
+  - Generación de mensaje cálido y personalizado: `"¡Hola Juan, María y Sofía! Les recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirmen su asistencia si aún no lo han hecho. Si desean realizar un presente, pueden hacerlo en efectivo a nuestro alias: cumpleanos2710"`.
+  - Cola secuencial con pausa aleatoria de 4 a 8 segundos (`4000 + Math.random() * 4000`).
+  - Actualización atómica de `recordatorio_enviado = true` para todos los integrantes agrupados inmediatamente después del envío.
+- [x] **Tarea 6.4: Endpoint Administrativo de Forzado Seguro**
+  - `POST /api/admin/forzar-recordatorio?token=cumpleanos2710`: valida token, responde HTTP 401 si es incorrecto, y dispara asíncronamente el flujo de recordatorios con HTTP 200 si es correcto.
+- [x] **Tarea 6.5: Optimización de Rendimiento en Render Free Tier**
+  - Configuración de flags de Puppeteer (`--js-flags=--max-old-space-size=256`, `--disable-extensions`, etc.) para mantener Chromium por debajo del límite de 512MB RAM.
+  - Endpoint `GET /ping` para UptimeRobot 24/7.
