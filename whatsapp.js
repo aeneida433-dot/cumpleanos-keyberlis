@@ -76,7 +76,12 @@ const client = new Client({
       '--disable-gpu',
       '--disable-extensions',
       '--disable-default-apps',
-      '--js-flags=--max-old-space-size=256',
+      '--disable-software-rasterizer',
+      '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process',
+      '--mute-audio',
+      '--single-process',
+      '--no-zygote',
+      '--js-flags=--max-old-space-size=192 --expose-gc',
       '--disable-blink-features=AutomationControlled'
     ]
   }

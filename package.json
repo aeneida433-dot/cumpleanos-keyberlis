@@ -4,7 +4,7 @@
   "description": "Backend para invitacion digital de 15 anos de Keyberlis con Neon, Express y automatizacion de WhatsApp",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node --max-old-space-size=256 server.js",
     "test": "node tests/run_all.js",
     "build": "npx puppeteer browsers install chrome",
     "postinstall": "npx puppeteer browsers install chrome",
