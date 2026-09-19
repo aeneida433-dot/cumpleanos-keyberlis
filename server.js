@@ -18,7 +18,7 @@ if (fs.existsSync('/etc/secrets/.env')) {
 
 const { initDB, query } = require('./db');
 const { normalizePhone } = require('./lib/phoneNormalizer');
-const { initWhatsApp, enviarMensaje, isReady, getLatestQR, getLatestQRDataURL, getLoadingState, getRecentLogs, setSocketIO } = require('./whatsapp');
+const { initWhatsApp, enviarMensaje, isReady, getLatestQR, getLatestQRDataURL, getLoadingState, getRecentLogs, setSocketIO, refrescarQR } = require('./whatsapp');
 const { initCron, ejecutarRecordatorios } = require('./cron');
 
 const app = express();
@@ -44,6 +44,14 @@ io.on('connection', (socket) => {
   if (loading) {
     socket.emit('whatsapp-loading', loading);
   }
+
+  // Solicitud para forzar y refrescar el código QR desde el panel web
+  socket.on('solicitar-nuevo-qr', async () => {
+    console.log('⚡ [Socket] Solicitud de nuevo código QR recibida de cliente:', socket.id);
+    if (typeof refrescarQR === 'function') {
+      await refrescarQR();
+    }
+  });
 });
 
 const PORT = process.env.PORT || 3000;
@@ -68,6 +76,11 @@ app.use((req, res, next) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   }
   next();
+});
+
+// Redirección de protección: evitar acceso directo sin bloqueo a admin.html
+app.get('/admin.html', (req, res) => {
+  res.redirect('/admin/dashboard');
 });
 
 // Servir archivos estáticos del frontend (HTML, CSS, JS, imágenes)
@@ -221,8 +234,9 @@ app.post('/api/admin/forzar-recordatorio', (req, res) => {
 // 4. ENDPOINT ADMINISTRATIVO: GET /api/invitados
 // ========================================================
 app.get('/api/invitados', async (req, res) => {
-  if (!isAuthorized(req)) {
-    return res.status(401).json({ success: false, error: 'No autorizado' });
+  const adminKey = req.headers['x-admin-key'];
+  if (!adminKey || typeof adminKey !== 'string' || !isAuthorized(req)) {
+    return res.status(401).json({ success: false, error: 'No autorizado. Se requiere x-admin-key válida en cabeceras.' });
   }
 
   try {

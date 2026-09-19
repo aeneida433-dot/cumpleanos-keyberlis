@@ -20,29 +20,41 @@ const DEFAULT_CONFIG = {
 };
 
 // Cargar configuración guardada o usar la predeterminada
-let savedConfig = JSON.parse(localStorage.getItem("cumpleanos_config"));
-if (savedConfig && (savedConfig.birthdayGirl === "Marina" || savedConfig.eventDate.includes("18:00"))) {
-  savedConfig = null;
-  localStorage.removeItem("cumpleanos_config");
+let savedConfig = null;
+if (typeof localStorage !== 'undefined') {
+  try {
+    savedConfig = JSON.parse(localStorage.getItem("cumpleanos_config"));
+    if (savedConfig && (savedConfig.birthdayGirl === "Marina" || savedConfig.eventDate.includes("18:00"))) {
+      savedConfig = null;
+      localStorage.removeItem("cumpleanos_config");
+    }
+  } catch (e) {}
 }
 
 let config = savedConfig || DEFAULT_CONFIG;
-let guestList = JSON.parse(localStorage.getItem("cumpleanos_guests")) || [];
+let guestList = [];
+if (typeof localStorage !== 'undefined') {
+  try {
+    guestList = JSON.parse(localStorage.getItem("cumpleanos_guests")) || [];
+  } catch (e) {}
+}
 let isMusicPlaying = false;
 let audioCtx = null;
 let musicInterval = null;
 
 // Inicialización al cargar la página
-document.addEventListener("DOMContentLoaded", () => {
-  initParticles();
-  initCountdown();
-  initDesignToggle();
-  initAudio();
-  initRSVPForm();
-  initAdminModal();
-  updateUIWithConfig();
-  renderGuestList();
-});
+if (typeof document !== 'undefined') {
+  document.addEventListener("DOMContentLoaded", () => {
+    initParticles();
+    initCountdown();
+    initDesignToggle();
+    initAudio();
+    initRSVPForm();
+    initAdminModal();
+    updateUIWithConfig();
+    renderGuestList();
+  });
+}
 
 /* ========================================================
    1. SISTEMA DE DESTELLES Y PARTÍCULAS (CANVAS)
@@ -418,7 +430,8 @@ function createSimpleQRCodeSVG(text) {
   `;
 }
 
-window.downloadVIPTicket = function() {
+if (typeof window !== 'undefined') {
+  window.downloadVIPTicket = function() {
   const guestName = document.getElementById("ticket-guest-name").innerText || "Invitado";
   const canvas = document.createElement("canvas");
   canvas.width = 600;
@@ -473,7 +486,8 @@ window.downloadVIPTicket = function() {
   link.href = canvas.toDataURL("image/png");
   link.click();
   showToast("🎟 ¡Pase VIP descargado con éxito!");
-};
+  };
+}
 
 /* ========================================================
    7. PANEL DE ADMINISTRACIÓN / CONFIGURACIÓN DE ANFITRIÓN
@@ -484,10 +498,26 @@ window.downloadVIPTicket = function() {
 let adminPollInterval = null;
 let neonGuestsList = [];
 let appSocket = null;
+let currentAdminKey = null;
+
+function validateAndToggleAdminModal(inputPassword, modalElement) {
+  if (!inputPassword || typeof inputPassword !== 'string' || inputPassword.trim() !== 'key27102011') {
+    currentAdminKey = null;
+    if (modalElement) {
+      modalElement.style.setProperty('display', 'none', 'important');
+    }
+    return { success: false, display: 'none' };
+  }
+
+  currentAdminKey = 'key27102011';
+  if (modalElement) {
+    modalElement.style.setProperty('display', 'flex', 'important');
+  }
+  return { success: true, display: 'flex' };
+}
 
 function initAdminSocket() {
-  const key = sessionStorage.getItem("cumpleanos_admin_key");
-  if (key !== "key27102011") {
+  if (currentAdminKey !== "key27102011") {
     console.warn("⚠️ [Socket] Conexión de socket restringida: requiere clave key27102011");
     return;
   }
@@ -508,12 +538,12 @@ function initAdminSocket() {
   });
 
   appSocket.on('whatsapp-qr', (data) => {
-    const currentKey = sessionStorage.getItem("cumpleanos_admin_key");
-    if (currentKey !== "key27102011") return;
+    if (currentAdminKey !== "key27102011") return;
 
     const qrContainer = document.getElementById("codigo-qr-whatsapp") || document.getElementById("wa-qr-container");
     let qrImg = document.getElementById("wa-qr-img");
     const badge = document.getElementById("wa-status-badge");
+    const btnRefrescarQR = document.getElementById("btn-refrescar-qr");
 
     if (qrContainer) {
       qrContainer.style.display = "block";
@@ -535,6 +565,11 @@ function initAdminSocket() {
       }
     }
 
+    if (btnRefrescarQR) {
+      btnRefrescarQR.disabled = false;
+      btnRefrescarQR.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> <span>🔄 Generar nuevo QR</span>';
+    }
+
     if (badge) {
       badge.innerHTML = '📲 Escanear Código QR';
       badge.style.background = 'rgba(234, 179, 8, 0.2)';
@@ -544,14 +579,19 @@ function initAdminSocket() {
   });
 
   appSocket.on('whatsapp-ready', () => {
-    const currentKey = sessionStorage.getItem("cumpleanos_admin_key");
-    if (currentKey !== "key27102011") return;
+    if (currentAdminKey !== "key27102011") return;
 
     const qrContainer = document.getElementById("codigo-qr-whatsapp") || document.getElementById("wa-qr-container");
     const badge = document.getElementById("wa-status-badge");
+    const btnRefrescarQR = document.getElementById("btn-refrescar-qr");
 
     if (qrContainer) {
       qrContainer.style.display = "none";
+    }
+
+    if (btnRefrescarQR) {
+      btnRefrescarQR.disabled = false;
+      btnRefrescarQR.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> <span>🔄 Generar nuevo QR</span>';
     }
 
     if (badge) {
@@ -563,8 +603,7 @@ function initAdminSocket() {
   });
 
   appSocket.on('whatsapp-loading', (data) => {
-    const currentKey = sessionStorage.getItem("cumpleanos_admin_key");
-    if (currentKey !== "key27102011") return;
+    if (currentAdminKey !== "key27102011") return;
 
     const qrContainer = document.getElementById("codigo-qr-whatsapp") || document.getElementById("wa-qr-container");
     const badge = document.getElementById("wa-status-badge");
@@ -590,46 +629,54 @@ function initAdminModal() {
   const exportBtn = document.getElementById("export-csv-btn");
   const refreshBtn = document.getElementById("refresh-admin-btn");
   const triggerBtn = document.getElementById("trigger-reminders-btn");
+  const btnRefrescarQR = document.getElementById("btn-refrescar-qr");
 
   if (!openBtn || !modal) return;
 
+  // Botón para refrescar QR sin recargar la página
+  if (btnRefrescarQR) {
+    btnRefrescarQR.addEventListener("click", () => {
+      if (currentAdminKey !== "key27102011") return;
+      btnRefrescarQR.disabled = true;
+      btnRefrescarQR.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Cargando...</span>';
+
+      if (appSocket && appSocket.connected) {
+        appSocket.emit('solicitar-nuevo-qr');
+      } else {
+        fetchWhatsAppStatus();
+      }
+      showToast("🔄 Solicitando nuevo código QR...");
+    });
+  }
+
   // 1. CAPTURA DEL EVENTO (ÍCONO DE AJUSTES CON TRES CONTROLES DESLIZANTES):
-  // Intercepta el click y suspende la apertura directa del Panel del Anfitrión
+  // La contraseña DEBE solicitarse de forma obligatoria CADA VEZ que se haga clic
   openBtn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // 2. VALIDACIÓN DE CONTRASEÑA ESTRICTA (key27102011)
-    const storedKey = sessionStorage.getItem("cumpleanos_admin_key");
-    let keyToUse = storedKey;
+    // 2. VALIDACIÓN DE CONTRASEÑA ESTRICTA SIN MEMORIA (key27102011)
+    const promptInput = prompt("🔒 ACCESO RESTRINGIDO AL PANEL DEL ANFITRIÓN\n\nPor favor, ingresa la contraseña de seguridad:");
 
-    if (!keyToUse || keyToUse !== "key27102011") {
-      const promptInput = prompt("🔒 ACCESO RESTRINGIDO AL PANEL DEL ANFITRIÓN\n\nPor favor, ingresa la contraseña de seguridad:");
-
-      // Si se cancela el cuadro o se deja vacío
-      if (promptInput === null || promptInput.trim() === "") {
-        showToast("🚫 Acceso Denegado: Operación cancelada");
-        modal.style.display = "none";
-        return;
-      }
-
-      const cleanPass = promptInput.trim();
-      // Si la clave no es exactamente key27102011
-      if (cleanPass !== "key27102011") {
-        showToast("❌ Acceso Denegado: Contraseña incorrecta");
-        alert("❌ Acceso Denegado: Contraseña incorrecta.");
-        modal.style.display = "none";
-        return;
-      }
-
-      keyToUse = cleanPass;
-      sessionStorage.setItem("cumpleanos_admin_key", keyToUse);
-      showToast("🔓 Acceso Concedido al Panel del Anfitrión");
+    if (promptInput === null || promptInput.trim() === "") {
+      showToast("🚫 Acceso Denegado: Operación cancelada");
+      validateAndToggleAdminModal(null, modal);
+      return;
     }
 
-    // Si la clave es correcta, iniciar socket seguro y mostrar el panel
+    const cleanPass = promptInput.trim();
+    if (cleanPass !== "key27102011") {
+      showToast("❌ Acceso Denegado: Contraseña incorrecta");
+      alert("❌ Acceso Denegado: Contraseña incorrecta.");
+      validateAndToggleAdminModal(cleanPass, modal);
+      return;
+    }
+
+    // Acceso concedido
+    validateAndToggleAdminModal(cleanPass, modal);
+    showToast("🔓 Acceso Concedido al Panel del Anfitrión");
+
     initAdminSocket();
-    modal.style.display = "flex";
     populateAdminForm();
     fetchWhatsAppStatus();
     fetchNeonGuests();
@@ -638,24 +685,18 @@ function initAdminModal() {
     adminPollInterval = setInterval(fetchWhatsAppStatus, 5000);
   });
 
-  if (closeBtn) {
-    closeBtn.addEventListener("click", () => {
-      modal.style.display = "none";
-      if (adminPollInterval) {
-        clearInterval(adminPollInterval);
-        adminPollInterval = null;
-      }
-    });
+  function closeModal() {
+    modal.style.setProperty('display', 'none', 'important');
+    currentAdminKey = null;
+    if (adminPollInterval) {
+      clearInterval(adminPollInterval);
+      adminPollInterval = null;
+    }
   }
 
+  if (closeBtn) closeBtn.addEventListener("click", closeModal);
   window.addEventListener("click", (e) => {
-    if (e.target === modal) {
-      modal.style.display = "none";
-      if (adminPollInterval) {
-        clearInterval(adminPollInterval);
-        adminPollInterval = null;
-      }
-    }
+    if (e.target === modal) closeModal();
   });
 
   if (refreshBtn) {
@@ -764,10 +805,9 @@ function fetchWhatsAppStatus() {
 
 // 3. ENDPOINT DE DATOS SEGURO: Cabeceras con clave estricta
 function getAdminHeaders() {
-  const key = sessionStorage.getItem('cumpleanos_admin_key') || '';
   return {
     'Content-Type': 'application/json',
-    'x-admin-key': key
+    'x-admin-key': currentAdminKey || ''
   };
 }
 
@@ -784,10 +824,10 @@ function fetchNeonGuests() {
     .then(res => {
       if (!res.ok) {
         if (res.status === 401) {
-          sessionStorage.removeItem('cumpleanos_admin_key');
+          currentAdminKey = null;
           showToast("🔒 Acceso no autorizado a invitados");
           const modal = document.getElementById("admin-modal");
-          if (modal) modal.style.display = "none";
+          if (modal) modal.style.setProperty('display', 'none', 'important');
         }
         throw new Error('No autorizado');
       }
@@ -867,8 +907,7 @@ function updateUIWithConfig() {
 }
 
 function renderGuestList() {
-  const key = sessionStorage.getItem('cumpleanos_admin_key');
-  if (key === 'key27102011') {
+  if (currentAdminKey === 'key27102011') {
     fetchNeonGuests();
   }
 }
@@ -907,11 +946,13 @@ function exportGuestListToCSV() {
 /* ========================================================
    8. COMPARTIR INVITACIÓN POR WHATSAPP
    ======================================================== */
-window.shareInvitation = function() {
-  const shareText = `✨ *¡Estás invitado a mis 15 años!* ✨\n\nAcompaña a ${config.birthdayGirl} en una noche inolvidable temática Disco Silver 🪩🥂.\n\n🗓 *Sábado, 07 de Noviembre*\n⏰ *Horario:* 21:00 a 6:00 hrs\n📍 *Lugar:* ${config.venueName}\n\n👉 *Mira la invitación y confirma tu asistencia aquí:* ${window.location.href}`;
-  const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
-  window.open(url, "_blank");
-};
+if (typeof window !== 'undefined') {
+  window.shareInvitation = function() {
+    const shareText = `✨ *¡Estás invitado a mis 15 años!* ✨\n\nAcompaña a ${config.birthdayGirl} en una noche inolvidable temática Disco Silver 🪩🥂.\n\n🗓 *Sábado, 07 de Noviembre*\n⏰ *Horario:* 21:00 a 6:00 hrs\n📍 *Lugar:* ${config.venueName}\n\n👉 *Mira la invitación y confirma tu asistencia aquí:* ${window.location.href}`;
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+    window.open(url, "_blank");
+  };
+}
 
 /* ========================================================
    9. EFECTO CONFETI FESTIVO
@@ -944,3 +985,11 @@ function showToast(msg) {
     toast.classList.remove("show");
   }, 3200);
 }
+
+// Exportación para pruebas unitarias en entorno Node.js
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    validateAndToggleAdminModal
+  };
+}
+

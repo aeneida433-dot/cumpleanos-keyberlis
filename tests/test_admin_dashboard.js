@@ -79,9 +79,17 @@ async function runSecuritySuite() {
         const verifyOk = await request('POST', '/api/admin/verify-key', { key: 'key27102011' });
         assert(verifyOk.status === 200 && verifyOk.body.success === true, 'POST /api/admin/verify-key valida key27102011 con 200 OK');
 
-        // 4. GET /api/invitados con cabecera x-admin-key: key27102011
+        // 4a. GET /api/invitados con cabecera x-admin-key: key27102011
         const invAuth = await request('GET', '/api/invitados', null, { 'x-admin-key': 'key27102011' });
         assert(invAuth.status === 200 && Array.isArray(invAuth.body.invitados), 'GET /api/invitados autoriza acceso con clave key27102011');
+
+        // 4b. GET /api/invitados sin cabecera x-admin-key es rechazado con 401
+        const invNoAuth = await request('GET', '/api/invitados');
+        assert(invNoAuth.status === 401 && invNoAuth.body.success === false, 'GET /api/invitados sin cabecera responde 401 Unauthorized');
+
+        // 4c. GET /api/invitados con clave inválida es rechazado con 401
+        const invWrongAuth = await request('GET', '/api/invitados', null, { 'x-admin-key': 'clave_incorrecta' });
+        assert(invWrongAuth.status === 401 && invWrongAuth.body.success === false, 'GET /api/invitados con clave incorrecta responde 401 Unauthorized');
 
         // 5. POST /api/admin/forzar-recordatorio rechaza token incorrecto (401)
         const forceFail = await request('POST', '/api/admin/forzar-recordatorio?token=token_invalido');
@@ -92,8 +100,35 @@ async function runSecuritySuite() {
         assert(forceOk.status === 200 && forceOk.body.success === true, 'POST /api/admin/forzar-recordatorio autoriza token cumpleanos2710 con 200 OK');
 
         // 7. Verificación de Socket.io montado y exportado en tiempo real
-        const { setSocketIO } = require(path.join(projectRoot, 'whatsapp'));
+        const { setSocketIO, refrescarQR } = require(path.join(projectRoot, 'whatsapp'));
         assert(Boolean(app.io) && typeof setSocketIO === 'function', 'Socket.io está montado en el servidor HTTP y whatsapp.js exporta setSocketIO');
+        assert(typeof refrescarQR === 'function', 'whatsapp.js exporta función refrescarQR para el socket');
+
+        // 8. Aserción de Interfaz Web: Estado inicial del panel administrativo (display: none !important)
+        const fs = require('fs');
+        const indexHtmlContent = fs.readFileSync(path.join(projectRoot, 'index.html'), 'utf8');
+        const hasAdminModalHidden = indexHtmlContent.includes('id="admin-modal"') && 
+          indexHtmlContent.includes('style="display: none !important;"');
+        assert(hasAdminModalHidden, 'El contenedor #admin-modal en index.html inicia por defecto con display: none !important');
+
+        // 9. Aserción de Botón de Refresco de QR en index.html
+        const hasRefreshBtn = indexHtmlContent.includes('id="btn-refrescar-qr"') &&
+          indexHtmlContent.includes('Generar nuevo QR');
+        assert(hasRefreshBtn, 'index.html incluye el botón #btn-refrescar-qr para regenerar QR sin recargar');
+
+        // 10. Simulación de Comportamiento de Seguridad en UI: Clave incorrecta o vacía bloquea la UI
+        const { validateAndToggleAdminModal } = require(path.join(projectRoot, 'js', 'app.js'));
+        const mockModal = { style: { display: 'flex', setProperty(k, v) { this[k] = v; } } };
+        
+        const testEmpty = validateAndToggleAdminModal('', mockModal);
+        assert(testEmpty.success === false && mockModal.style.display === 'none', 'Simulación: Clave vacía mantiene #admin-modal en display: none');
+
+        const testWrong = validateAndToggleAdminModal('clave_falsa_999', mockModal);
+        assert(testWrong.success === false && mockModal.style.display === 'none', 'Simulación: Clave incorrecta mantiene #admin-modal en display: none');
+
+        // 11. Simulación de Comportamiento de Seguridad en UI: Clave exacta desbloquea la UI
+        const testCorrect = validateAndToggleAdminModal('key27102011', mockModal);
+        assert(testCorrect.success === true && mockModal.style.display === 'flex', 'Simulación: Clave exacta key27102011 cambia #admin-modal a display: flex');
 
         server.close(() => {
           resolveAll({ passed, failed });

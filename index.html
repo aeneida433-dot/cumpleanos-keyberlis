@@ -252,7 +252,7 @@
   </main>
 
   <!-- MODAL DE ADMINISTRACIÓN Y CONFIGURACIÓN DEL ANFITRIÓN -->
-  <div id="admin-modal" class="modal-backdrop">
+  <div id="admin-modal" class="modal-backdrop" style="display: none !important;">
     <div class="modal-content">
       <div class="modal-header">
         <h3><i class="fa-solid fa-gear"></i> Panel del Anfitrión</h3>
@@ -280,6 +280,11 @@
           </div>
           <div style="display: flex; justify-content: center; margin-bottom: 12px;">
             <img id="wa-qr-img" src="" alt="Código QR WhatsApp" style="max-width: 260px; width: 100%; border-radius: 10px; background: white; padding: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); image-rendering: pixelated;" />
+          </div>
+          <div style="display: flex; justify-content: center; margin-bottom: 10px;">
+            <button type="button" id="btn-refrescar-qr" class="btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; font-size: 0.8rem; font-weight: 600; background: rgba(250, 204, 21, 0.15); color: #facc15; border: 1px solid #facc15; border-radius: 8px; cursor: pointer;">
+              <i class="fa-solid fa-arrows-rotate"></i> <span>🔄 Generar nuevo QR</span>
+            </button>
           </div>
           <p style="font-size: 0.75rem; color: #cbd5e1; margin: 0 0 6px 0;">
             Abre WhatsApp > Ajustes > Dispositivos vinculados > Vincular un dispositivo.

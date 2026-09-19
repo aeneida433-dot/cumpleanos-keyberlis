@@ -216,6 +216,28 @@ function getRecentLogs() {
   return recentLogs;
 }
 
+/**
+ * Fuerza al cliente a refrescar el código QR o reiniciar el flujo de autenticación
+ */
+async function refrescarQR() {
+  if (isClientReady) {
+    if (ioInstance) ioInstance.emit('whatsapp-ready', { ready: true });
+    return;
+  }
+
+  logEvent('🔄 [WhatsApp] Solicitud de nuevo código QR recibida. Reiniciando flujo de autenticación...');
+  
+  try {
+    if (client.pupPage && !client.pupPage.isClosed()) {
+      await client.pupPage.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+    } else {
+      await client.initialize().catch(() => {});
+    }
+  } catch (err) {
+    logEvent('⚠️ [WhatsApp] Error al refrescar sesión de WhatsApp: ' + err.message);
+  }
+}
+
 module.exports = {
   client,
   initWhatsApp,
@@ -225,5 +247,6 @@ module.exports = {
   getLatestQRDataURL,
   getLoadingState,
   getRecentLogs,
-  setSocketIO
+  setSocketIO,
+  refrescarQR
 };
