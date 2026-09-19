@@ -6,10 +6,18 @@
 const { Pool } = require('pg');
 const fs = require('fs');
 
+process.env.PGSSLMODE = 'verify-full';
+
 if (fs.existsSync('/etc/secrets/.env')) {
   require('dotenv').config({ path: '/etc/secrets/.env', override: true });
 } else {
   require('dotenv').config({ override: true });
+}
+
+if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('sslmode=require')) {
+  process.env.DATABASE_URL = process.env.DATABASE_URL.replace('sslmode=require', 'sslmode=verify-full');
+} else if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('sslmode=')) {
+  process.env.DATABASE_URL += (process.env.DATABASE_URL.includes('?') ? '&' : '?') + 'sslmode=verify-full';
 }
 
 const NEON_CONNECTION_STRING = 'postgresql://neondb_owner:npg_fHcj1Z8QSxCh@ep-crimson-breeze-b5y4whea-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=verify-full';

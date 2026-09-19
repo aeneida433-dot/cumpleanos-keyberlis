@@ -3,6 +3,8 @@
  * Proyecto: Invitación 15 Años Keyberlis
  */
 
+process.env.PGSSLMODE = 'verify-full';
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -14,6 +16,12 @@ if (fs.existsSync('/etc/secrets/.env')) {
   require('dotenv').config({ path: '/etc/secrets/.env', override: true });
 } else {
   require('dotenv').config({ override: true });
+}
+
+if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('sslmode=require')) {
+  process.env.DATABASE_URL = process.env.DATABASE_URL.replace('sslmode=require', 'sslmode=verify-full');
+} else if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('sslmode=')) {
+  process.env.DATABASE_URL += (process.env.DATABASE_URL.includes('?') ? '&' : '?') + 'sslmode=verify-full';
 }
 
 const { initDB, query } = require('./db');
