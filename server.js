@@ -22,12 +22,29 @@ const { initCron, ejecutarRecordatorios } = require('./cron');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Protección contra caídas del proceso por excepciones asíncronas
+process.on('unhandledRejection', (reason, promise) => {
+  console.warn('⚠️ [Proceso Protegido] Unhandled Rejection prevenido:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ [Proceso Protegido] Uncaught Exception prevenida:', err);
+});
+
 // Middlewares
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Servir archivos estaticos del frontend (HTML, CSS, JS, imagenes)
+// Prevenir caché obsoleto en navegadores para código JS y HTML
+app.use((req, res, next) => {
+  if (req.url.endsWith('.js') || req.url.endsWith('.html') || req.url === '/') {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  }
+  next();
+});
+
+// Servir archivos estáticos del frontend (HTML, CSS, JS, imágenes)
 app.use(express.static(path.join(__dirname)));
 
 // ========================================================
