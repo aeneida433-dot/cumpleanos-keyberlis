@@ -102,16 +102,27 @@ client.on('qr', async (qr) => {
 });
 
 // Evento: Autenticación exitosa
-client.on('authenticated', () => {
+client.on('authenticated', async () => {
   isClientAuthenticated = true;
-  logEvent('🔐 [WhatsApp] ¡Sesión autenticada correctamente!');
+  isClientReady = true;
   latestQR = null;
   latestQRDataURL = null;
+  loadingPercent = 0;
+  logEvent('🔐 [WhatsApp] ¡Sesión autenticada correctamente!');
 
+  // Guardar tokens/sesión en Neon inmediatamente
+  try {
+    await store.save({ session: 'RemoteAuth' });
+  } catch (err) {
+    console.error('⚠️ [WhatsApp] Error al guardar sesión inicial en Neon:', err.message);
+  }
+
+  // Emitir de inmediato whatsapp-ready por Socket.IO al panel web para pasar a "✅ Conectado"
   if (ioInstance) {
+    ioInstance.emit('whatsapp-ready', { ready: true });
     ioInstance.emit('whatsapp-authenticated', {
       authenticated: true,
-      message: 'Sesión iniciada en el celular. Conectando...'
+      message: 'Sesión iniciada en el celular. Conectado.'
     });
   }
 });

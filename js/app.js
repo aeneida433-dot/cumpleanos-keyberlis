@@ -793,7 +793,7 @@ function fetchWhatsAppStatus() {
       const qrImg = document.getElementById("wa-qr-img");
       if (!badge) return;
 
-      if (data.ready) {
+      if (data.ready || data.authenticated) {
         badge.innerHTML = '✅ Conectado';
         badge.style.background = 'rgba(34, 197, 94, 0.2)';
         badge.style.color = '#4ade80';

@@ -108,10 +108,12 @@ async function initDB() {
 
     -- Tabla para persistencia de sesión de WhatsApp (RemoteAuth en Neon)
     CREATE TABLE IF NOT EXISTS whatsapp_session (
-      id VARCHAR(100) PRIMARY KEY,
-      data BYTEA NOT NULL,
-      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      id SERIAL PRIMARY KEY,
+      session_id VARCHAR(100) NOT NULL UNIQUE,
+      data TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+    GRANT ALL PRIVILEGES ON TABLE whatsapp_session TO PUBLIC;
   `;
 
   try {
