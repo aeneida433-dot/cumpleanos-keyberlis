@@ -1,16 +1,21 @@
 /**
- * Módulo de Cliente de WhatsApp (whatsapp-web.js)
- * Optimizado estrictamente para Render Free Tier (<512MB RAM) y Neon PostgreSQL
+ * Módulo de Automatización de WhatsApp (Baileys)
  * Proyecto: Invitación 15 Años Keyberlis
+ * Ultra-optimizado para Render Free Tier (<50MB RAM, sin Chromium)
  */
 
-const { Client, RemoteAuth } = require('whatsapp-web.js');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
+const pino = require('pino');
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 const PGStore = require('./lib/pgStore');
 
+const AUTH_DIR = path.resolve(__dirname, '.baileys_auth');
+const pgStore = new PGStore({ dataPath: AUTH_DIR });
+
 let ioInstance = null;
+let sock = null;
 let isClientReady = false;
 let isClientAuthenticated = false;
 let latestQR = null;
@@ -31,201 +36,127 @@ function logEvent(msg) {
   console.log(msg);
 }
 
-// Ubicar ejecutable de Chrome en cache local de Puppeteer si existe (Render / Linux)
-function getChromeExecutablePath() {
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-    return process.env.PUPPETEER_EXECUTABLE_PATH;
-  }
-  const localCache = path.join(__dirname, '.cache', 'puppeteer', 'chrome');
-  if (fs.existsSync(localCache)) {
-    const versions = fs.readdirSync(localCache);
-    for (const v of versions) {
-      const p = path.join(localCache, v, 'chrome-linux64', 'chrome');
-      if (fs.existsSync(p)) return p;
+let isInitializing = false;
+
+async function initWhatsApp() {
+  if (isInitializing) return;
+  isInitializing = true;
+
+  try {
+    // 1. Restaurar sesión desde Neon si existe y no está en disco
+    if (!fs.existsSync(AUTH_DIR) || fs.readdirSync(AUTH_DIR).length === 0) {
+      if (await pgStore.sessionExists('baileys_session')) {
+        logEvent('📥 [WhatsApp] Restaurando sesión de Baileys desde Neon PostgreSQL...');
+        await pgStore.extractFolder(AUTH_DIR, 'baileys_session');
+      }
     }
+
+    await fs.promises.mkdir(AUTH_DIR, { recursive: true });
+    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+
+    logEvent('🤖 [WhatsApp] Inicializando socket liviano de Baileys (sin Chromium)...');
+
+    sock = makeWASocket({
+      auth: state,
+      logger: pino({ level: 'silent' }),
+      printQRInTerminal: false,
+      browser: Browsers.macOS('Desktop'),
+      syncFullHistory: false,
+      generateHighQualityLinkPreview: false,
+    });
+
+    sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+
+      if (qr) {
+        latestQR = qr;
+        try {
+          latestQRDataURL = await qrcode.toDataURL(qr, { margin: 3, scale: 8 });
+        } catch (err) {
+          logEvent('Error al generar QR DataURL: ' + err.message);
+        }
+
+        logEvent('📲 [WhatsApp QR] Nuevo código QR de Baileys generado y listo para escanear.');
+        if (ioInstance && latestQRDataURL) {
+          ioInstance.emit('whatsapp-qr', {
+            qrDataURL: latestQRDataURL,
+            qr: qr
+          });
+        }
+      }
+
+      if (connection === 'close') {
+        isClientReady = false;
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        logEvent(`⚠️ [WhatsApp] Conexión cerrada (Código: ${statusCode || 'desconocido'}). Reconectando: ${shouldReconnect}`);
+
+        if (shouldReconnect) {
+          isInitializing = false;
+          setTimeout(() => initWhatsApp(), 4000);
+        } else {
+          logEvent('🚪 [WhatsApp] Sesión cerrada por el usuario o desvinculada. Limpiando credenciales...');
+          isClientAuthenticated = false;
+          await pgStore.delete('baileys_session');
+          try {
+            await fs.promises.rm(AUTH_DIR, { recursive: true, force: true });
+          } catch {}
+          isInitializing = false;
+          setTimeout(() => initWhatsApp(), 2000);
+        }
+      } else if (connection === 'open') {
+        isClientReady = true;
+        isClientAuthenticated = true;
+        latestQR = null;
+        latestQRDataURL = null;
+        loadingPercent = 0;
+        logEvent('✅ [WhatsApp] ¡Cliente Baileys conectado 100% y listo para enviar mensajes!');
+
+        // Guardar sesión en Neon
+        await pgStore.saveFolder(AUTH_DIR, 'baileys_session');
+
+        if (ioInstance) {
+          ioInstance.emit('whatsapp-ready', { ready: true });
+          ioInstance.emit('whatsapp-authenticated', {
+            authenticated: true,
+            message: 'Sesión vinculada exitosamente.'
+          });
+        }
+      }
+    });
+
+    sock.ev.on('creds.update', async () => {
+      await saveCreds();
+      await pgStore.saveFolder(AUTH_DIR, 'baileys_session');
+    });
+
+  } catch (err) {
+    logEvent('❌ [WhatsApp Error - initWhatsApp]: ' + err.message);
+  } finally {
+    isInitializing = false;
   }
-  return undefined;
 }
 
-// Configuración de almacenamiento remoto de sesión en Neon PostgreSQL
-const store = new PGStore({
-  dataPath: path.join(__dirname, '.wwebjs_auth')
-});
-
-// Configuración optimizada de Puppeteer para Render (<512MB RAM)
-const client = new Client({
-  authTimeoutMs: 60000, // 60 segundos para permitir procesamiento asíncrono en Neon sin timeout
-  authStrategy: new RemoteAuth({
-    store: store,
-    dataPath: path.join(__dirname, '.wwebjs_auth'),
-    backupSyncIntervalMs: 120000 // Respaldo a Neon cada 2 minutos
-  }),
-  webVersionCache: {
-    type: 'remote',
-    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1047947458-alpha.html'
-  },
-  puppeteer: {
-    headless: true,
-    executablePath: getChromeExecutablePath(),
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--disable-gpu',
-      '--disable-extensions',
-      '--disable-default-apps',
-      '--disable-software-rasterizer',
-      '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process',
-      '--mute-audio',
-      '--single-process',
-      '--no-zygote',
-      '--js-flags=--max-old-space-size=192 --expose-gc',
-      '--disable-blink-features=AutomationControlled'
-    ]
-  }
-});
-
-// Evento: Generación de Código QR para vincular sesión
-client.on('qr', async (qr) => {
-  // Evitar bucle: Si el cliente ya está autenticado o conectado, ignorar nuevos códigos QR
-  if (isClientAuthenticated || isClientReady) {
-    console.log('ℹ️ [WhatsApp QR] QR ignorado porque la sesión ya se encuentra autenticada/conectada.');
-    return;
-  }
-
-  latestQR = qr;
-  try {
-    latestQRDataURL = await qrcode.toDataURL(qr, { margin: 3, scale: 8 });
-  } catch (err) {
-    logEvent('Error al generar QR DataURL: ' + err.message);
-  }
-
-  logEvent('📲 [WhatsApp QR] Nuevo código QR generado y listo para escanear en el panel web.');
-
-  // Emitir de inmediato por Socket.IO al panel web
-  if (ioInstance && latestQRDataURL) {
-    ioInstance.emit('whatsapp-qr', {
-      qrDataURL: latestQRDataURL,
-      qr: qr
-    });
-  }
-});
-
-// Evento: Autenticación exitosa
-client.on('authenticated', async () => {
-  isClientAuthenticated = true;
-  isClientReady = true;
-  latestQR = null;
-  latestQRDataURL = null;
-  loadingPercent = 0;
-  logEvent('🔐 [WhatsApp] ¡Sesión autenticada correctamente!');
-
-  // Guardar tokens/sesión en Neon inmediatamente de forma asíncrona con await real
-  try {
-    await store.save({ session: 'RemoteAuth' });
-  } catch (err) {
-    console.error('⚠️ [WhatsApp] Error al guardar sesión inicial en Neon:', err.message);
-  }
-
-  // Emitir de inmediato whatsapp-ready por Socket.IO al panel web para pasar a "✅ Conectado"
-  if (ioInstance) {
-    ioInstance.emit('whatsapp-ready', { ready: true });
-    ioInstance.emit('whatsapp-authenticated', {
-      authenticated: true,
-      message: 'Sesión iniciada en el celular. Conectado.'
-    });
-  }
-});
-
-// Evento: Fallo de autenticación
-client.on('auth_failure', (msg) => {
-  logEvent('❌ [WhatsApp] Aviso de autenticación: ' + JSON.stringify(msg));
-  // No tumbar el cliente si la sesión ya fue validada (evita reinicios por micro-latencia de red)
-  if (!isClientAuthenticated) {
-    isClientReady = false;
-    latestQRDataURL = null;
-
-    if (ioInstance) {
-      ioInstance.emit('whatsapp-auth-failure', {
-        message: 'Fallo de autenticación. Por favor genera un nuevo código QR.'
-      });
-    }
-  }
-});
-
-// Evento: Cliente listo para enviar mensajes
-client.on('ready', () => {
-  isClientReady = true;
-  latestQR = null;
-  latestQRDataURL = null;
-  loadingPercent = 0;
-  logEvent('✅ [WhatsApp] ¡Cliente listo y conectado 100% para enviar mensajes!');
-
-  // Emitir evento 'whatsapp-ready' por Socket.IO al panel web
-  if (ioInstance) {
-    ioInstance.emit('whatsapp-ready', { ready: true });
-  }
-});
-
-// Evento: Cargando chats / sincronización progresiva
-client.on('loading_screen', (percent, message) => {
-  loadingPercent = percent;
-  loadingMessage = message;
-  logEvent(`⏳ [WhatsApp] Sincronizando chats: ${percent}% - ${message}`);
-
-  if (ioInstance) {
-    ioInstance.emit('whatsapp-loading', { percent, message });
-  }
-});
-
-// Evento: Sesión remota respaldada en Neon PostgreSQL
-client.on('remote_session_saved', () => {
-  logEvent('🎉 [WhatsApp] ¡Sesión remota respaldada exitosamente en Neon PostgreSQL!');
-});
-
-// Evento: Desconexión
-client.on('disconnected', (reason) => {
-  isClientReady = false;
-  latestQRDataURL = null;
-  loadingPercent = 0;
-  logEvent('⚠️ [WhatsApp] Cliente desconectado. Motivo: ' + reason);
-});
-
-/**
- * Inicializa el cliente de WhatsApp
- */
-function initWhatsApp() {
-  console.log('🤖 [WhatsApp] Iniciando cliente de automatización con RemoteAuth en Neon...');
-  client.initialize().catch((err) => {
-    console.error('❌ [WhatsApp Error]:', err.message);
-  });
-}
-
-/**
- * Envía un mensaje a un número telefónico normalizado (E.164 Argentina)
- * @param {string} phone - Número normalizado (ej: 54911xxxxxxxx)
- * @param {string} message - Texto del mensaje
- * @returns {Promise<{ success: boolean, messageId?: string, error?: string }>}
- */
-async function enviarMensaje(phone, message) {
-  if (!isClientReady) {
+async function enviarMensaje(telefono, mensaje) {
+  if (!isClientReady || !sock) {
+    logEvent(`❌ [WhatsApp Error] No se pudo enviar a ${telefono}: Cliente no conectado.`);
     return {
       success: false,
-      error: 'El cliente de WhatsApp no está conectado aún. Escanee el código QR.'
+      error: 'WhatsApp no está conectado'
     };
   }
 
   try {
-    const chatId = phone + '@c.us';
-    const resp = await client.sendMessage(chatId, message);
+    const cleanPhone = telefono.replace(/\D/g, '');
+    const jid = `${cleanPhone}@s.whatsapp.net`;
+    const result = await sock.sendMessage(jid, { text: mensaje });
+    logEvent(`📤 [WhatsApp] Mensaje enviado a ${cleanPhone} (JID: ${jid})`);
     return {
       success: true,
-      messageId: resp.id._serialized
+      result
     };
   } catch (err) {
-    console.error('[WhatsApp Send Error]:', err.message);
+    logEvent(`❌ [WhatsApp Error - enviarMensaje]: ${err.message}`);
     return {
       success: false,
       error: err.message
@@ -238,7 +169,7 @@ function isReady() {
 }
 
 function isAuthenticated() {
-  return isClientAuthenticated;
+  return isClientAuthenticated || isClientReady;
 }
 
 function getLatestQR() {
@@ -261,30 +192,27 @@ function getRecentLogs() {
   return recentLogs;
 }
 
-/**
- * Fuerza al cliente a refrescar el código QR o reiniciar el flujo de autenticación
- */
 async function refrescarQR() {
-  if (isClientReady || isClientAuthenticated) {
+  if (isClientReady) {
     if (ioInstance) ioInstance.emit('whatsapp-ready', { ready: true });
     return;
   }
 
-  logEvent('🔄 [WhatsApp] Solicitud de nuevo código QR recibida. Reiniciando flujo de autenticación...');
-  
+  logEvent('🔄 [WhatsApp] Solicitud de nuevo código QR recibida. Reiniciando Baileys...');
   try {
-    if (client.pupPage && !client.pupPage.isClosed()) {
-      await client.pupPage.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
-    } else {
-      await client.initialize().catch(() => {});
+    if (sock) {
+      try { sock.end(); } catch {}
+      sock = null;
     }
   } catch (err) {
-    logEvent('⚠️ [WhatsApp] Error al refrescar sesión de WhatsApp: ' + err.message);
+    logEvent('⚠️ [WhatsApp] Error al reiniciar socket: ' + err.message);
   }
+  isInitializing = false;
+  await initWhatsApp();
 }
 
 module.exports = {
-  client,
+  client: { pupPage: null }, // Mock para compatibilidad
   initWhatsApp,
   enviarMensaje,
   isReady,
