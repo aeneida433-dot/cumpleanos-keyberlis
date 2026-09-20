@@ -256,6 +256,24 @@ async function runSecuritySuite() {
           'DELETE /api/invitados/:id con sesión JWT autorizada elimina físicamente el registro de Neon'
         );
 
+        // 26. Aserción de Destinatario de Alertas en Tiempo Real (Keyberlis)
+        assert(
+          app.BIRTHDAY_GIRL_PHONE === '5491161034151',
+          'El número de destino para alertas en tiempo real es estrictamente 5491161034151'
+        );
+
+        // 27. Aserción de Registro Silencioso ante Respuesta Negativa en POST /api/rsvp
+        const declineRes = await request('POST', '/api/rsvp', {
+          nombre: 'Mariana Declinante',
+          telefono: '1144445555',
+          attending: false
+        });
+        assert(
+          declineRes.status === 200 && declineRes.body.saved === true && declineRes.body.attending === false,
+          'POST /api/rsvp con attending: false registra silenciosamente en Neon sin enviar alertas de WhatsApp'
+        );
+        await query('DELETE FROM invitados WHERE telefono = $1', ['5491144445555']);
+
         server.close(() => {
           resolveAll({ passed, failed });
         });

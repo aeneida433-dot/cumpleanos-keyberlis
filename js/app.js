@@ -337,6 +337,27 @@ function initRSVPForm() {
       showVIPTicket(guestData);
       triggerConfetti();
     } else {
+      const honeypotVal = document.getElementById("b_website") ? document.getElementById("b_website").value : "";
+      fetch(`${API_BASE}/api/rsvp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: guestData.name,
+          telefono: phone,
+          attending: false,
+          b_website: honeypotVal
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          console.log('ℹ️ [Neon DB] No asistencia registrada silenciosamente.');
+        }
+      })
+      .catch(err => {
+        console.warn('ℹ️ Servidor en segundo plano o modo local:', err.message);
+      });
+
       showToast("💌 ¡Muchas gracias por avisarnos! Lamentamos que no puedas venir.");
     }
 

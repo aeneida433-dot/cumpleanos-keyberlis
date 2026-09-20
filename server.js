@@ -78,6 +78,9 @@ const { initDB, query } = require('./db');
 const { normalizePhone } = require('./lib/phoneNormalizer');
 const { initWhatsApp, enviarMensaje, isReady, isAuthenticated, getLatestQR, getLatestQRDataURL, getLoadingState, getRecentLogs, setSocketIO, refrescarQR } = require('./whatsapp');
 const { initCron, ejecutarRecordatorios, buildReminderMessage } = require('./cron');
+const { buildRSVPAlert, buildReconfirmationAlert } = require('./lib/alerts');
+
+const BIRTHDAY_GIRL_PHONE = process.env.BIRTHDAY_GIRL_PHONE || '5491161034151';
 
 const app = express();
 const server = http.createServer(app);
@@ -259,12 +262,32 @@ app.post('/api/rsvp', rsvpRateLimiter, async (req, res) => {
       });
     }
 
-    // Si el invitado marca que NO asistirá, no se crea nada en Neon
+    // Si el invitado marca que NO asistirá, se guarda de forma silenciosa en Neon (sin enviar alerta por WhatsApp)
     if (attending === false || attending === 'false') {
-      console.log(`ℹ️ [RSVP] Invitado indicó que no asistirá: "${nombre || 'Sin nombre'}". No se registra en Neon.`);
+      console.log(`ℹ️ [RSVP] Invitado indicó que no asistirá: "${nombre || 'Sin nombre'}".`);
+      if (nombre && typeof nombre === 'string' && nombre.trim().length >= 2 && telefono) {
+        const phoneResult = normalizePhone(telefono);
+        if (phoneResult.valid) {
+          const cleanName = sanitizeInput(nombre).slice(0, 100);
+          const silentSql = `
+            INSERT INTO invitados (nombre, telefono, asiste, recordatorio_enviado)
+            VALUES ($1, $2, false, false)
+            ON CONFLICT (nombre, telefono) DO UPDATE
+            SET asiste = false, fecha_registro = CURRENT_TIMESTAMP
+            RETURNING id, nombre, telefono, asiste, fecha_registro;
+          `;
+          try {
+            await query(silentSql, [cleanName, phoneResult.formatted]);
+            console.log(`💾 [RSVP] Guardado silencioso de no asistencia en Neon: "${cleanName}" (${phoneResult.formatted})`);
+          } catch (dbErr) {
+            console.warn(`⚠️ [RSVP DB]: Error al registrar no asistencia:`, dbErr.message);
+          }
+        }
+      }
       return res.status(200).json({
         success: true,
-        saved: false,
+        saved: true,
+        attending: false,
         message: 'Respuesta recibida. ¡Muchas gracias por avisarnos!'
       });
     }
@@ -293,15 +316,30 @@ app.post('/api/rsvp', rsvpRateLimiter, async (req, res) => {
 
     // Inserción con idempotencia sobre UNIQUE (nombre, telefono) en Neon
     const sql = [
-      'INSERT INTO invitados (nombre, telefono, recordatorio_enviado)',
-      'VALUES ($1, $2, false)',
+      'INSERT INTO invitados (nombre, telefono, asiste, recordatorio_enviado)',
+      'VALUES ($1, $2, true, false)',
       'ON CONFLICT (nombre, telefono) DO UPDATE',
-      'SET fecha_registro = CURRENT_TIMESTAMP',
-      'RETURNING id, nombre, telefono, recordatorio_enviado, reconfirmado, fecha_reconfirmacion, token_reconfirmacion, fecha_registro;'
+      'SET asiste = true, fecha_registro = CURRENT_TIMESTAMP',
+      'RETURNING id, nombre, telefono, asiste, recordatorio_enviado, reconfirmado, fecha_reconfirmacion, token_reconfirmacion, fecha_registro;'
     ].join('\n');
 
     const dbResult = await query(sql, [cleanName, normalizedPhone]);
     const guest = dbResult.rows[0];
+
+    // Consultar el conteo total acumulado de invitados confirmados que asisten
+    let totalConfirmados = 1;
+    try {
+      const countRes = await query('SELECT COUNT(*)::int as total FROM invitados WHERE asiste IS NOT FALSE;');
+      totalConfirmados = (countRes.rows[0] && countRes.rows[0].total) ? countRes.rows[0].total : 1;
+    } catch (countErr) {
+      console.warn('⚠️ [RSVP] Error al consultar total confirmados:', countErr.message);
+    }
+
+    // Despachar alerta automática en tiempo real a la cumpleañera (Opción C) en segundo plano
+    const rsvpAlertMsg = buildRSVPAlert(cleanName, totalConfirmados);
+    enviarMensaje(BIRTHDAY_GIRL_PHONE, rsvpAlertMsg).catch((waErr) => {
+      console.warn(`⚠️ [WhatsApp Alerta RSVP] No se pudo enviar alerta a ${BIRTHDAY_GIRL_PHONE}:`, waErr.message);
+    });
 
     return res.status(201).json({
       success: true,
@@ -369,6 +407,21 @@ app.post('/api/reconfirmar/:token', async (req, res) => {
       const updatedGuest = updateResult.rows[0];
 
       console.log(`🎉 [Doble Check] Invitado reconfirmado con éxito: "${updatedGuest.nombre}" (${updatedGuest.telefono})`);
+
+      // Consultar conteo total acumulado de confirmados
+      let totalConfirmados = 1;
+      try {
+        const countRes = await query('SELECT COUNT(*)::int as total FROM invitados WHERE asiste IS NOT FALSE;');
+        totalConfirmados = (countRes.rows[0] && countRes.rows[0].total) ? countRes.rows[0].total : 1;
+      } catch (countErr) {
+        console.warn('⚠️ [Reconfirmación] Error al consultar total confirmados:', countErr.message);
+      }
+
+      // Despachar alerta de reconfirmación formal a la cumpleañera (Opción C) en segundo plano
+      const reconfirmAlertMsg = buildReconfirmationAlert(updatedGuest.nombre, totalConfirmados);
+      enviarMensaje(BIRTHDAY_GIRL_PHONE, reconfirmAlertMsg).catch((waErr) => {
+        console.warn(`⚠️ [WhatsApp Alerta Reconfirmación] No se pudo enviar alerta a ${BIRTHDAY_GIRL_PHONE}:`, waErr.message);
+      });
 
       if (io) {
         io.emit('invitado-reconfirmado', {
@@ -642,4 +695,7 @@ app.io = io;
 app.verifyAdminPassword = verifyAdminPassword;
 app.sanitizeInput = sanitizeInput;
 app.JWT_SECRET = JWT_SECRET;
+app.BIRTHDAY_GIRL_PHONE = BIRTHDAY_GIRL_PHONE;
+app.buildRSVPAlert = buildRSVPAlert;
+app.buildReconfirmationAlert = buildReconfirmationAlert;
 module.exports = app;

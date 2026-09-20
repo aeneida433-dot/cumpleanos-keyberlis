@@ -7,6 +7,7 @@ const path = require('path');
 const projectRoot = path.resolve(__dirname, '..');
 const { normalizePhone } = require(path.join(projectRoot, 'lib/phoneNormalizer'));
 const { formatNames, buildReminderMessage } = require(path.join(projectRoot, 'cron'));
+const { buildRSVPAlert, buildReconfirmationAlert } = require(path.join(projectRoot, 'lib/alerts'));
 const { pool, query } = require(path.join(projectRoot, 'db'));
 
 async function runTestSuite() {
@@ -66,6 +67,19 @@ async function runTestSuite() {
     msgSingle.includes('👑 *¡Cuenta regresiva final, Juan!*') &&
     msgSingle.includes('key.2710'),
     'Mensaje individual incluye texto singular y alias exacto'
+  );
+
+  // 2.1 Alertas en Tiempo Real para Keyberlis (Opción C)
+  const rsvpAlert = buildRSVPAlert('Giovanni Restrepo', 15);
+  assert(
+    rsvpAlert === '🌸 ¡Nuevo Registro! *Giovanni Restrepo* asistirá a tu fiesta. 📊 Total confirmados actual: *15* invitados.',
+    'buildRSVPAlert genera el formato exacto de la Opción C'
+  );
+
+  const reconfirmAlert = buildReconfirmationAlert('Giovanni Restrepo', 15);
+  assert(
+    reconfirmAlert === '🚀 ¡Reconfirmación Formal! *Giovanni Restrepo* validó su asistencia para mañana. 📊 Total confirmados actual: *15* invitados.',
+    'buildReconfirmationAlert genera el formato exacto de la Opción C'
   );
 
   // 3. Base de Datos Neon (Familia con mismo teléfono)
@@ -128,6 +142,19 @@ async function runTestSuite() {
     const { limpiarSesionesHuerfanas } = require(path.join(projectRoot, 'cron'));
     const cleanCount = await limpiarSesionesHuerfanas();
     assert(typeof cleanCount === 'number', 'Función de limpieza de sesiones huérfanas en Neon se ejecuta correctamente');
+
+    // 6. Prueba de Registro Silencioso ante Respuesta Negativa (asiste = false)
+    await query('DELETE FROM invitados WHERE telefono = $1', [testPhone]);
+    await query(
+      'INSERT INTO invitados (nombre, telefono, asiste, recordatorio_enviado) VALUES ($1, $2, false, false)',
+      ['Carlos Rechazo', testPhone]
+    );
+    const noAsisteCheck = await query('SELECT asiste FROM invitados WHERE telefono = $1', [testPhone]);
+    assert(noAsisteCheck.rows[0].asiste === false, 'Invitado con respuesta negativa se guarda silenciosamente en Neon con asiste = false');
+
+    const countCheck = await query('SELECT COUNT(*)::int as total FROM invitados WHERE asiste IS NOT FALSE AND telefono = $1', [testPhone]);
+    assert(countCheck.rows[0].total === 0, 'La consulta de total confirmados excluye correctamente a invitados con asiste = false');
+    await query('DELETE FROM invitados WHERE telefono = $1', [testPhone]);
 
   } catch (err) {
     console.error('Error durante prueba de base de datos:', err);

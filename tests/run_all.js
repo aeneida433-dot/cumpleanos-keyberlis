@@ -6,7 +6,7 @@
 process.env.NODE_ENV = 'test';
 const { runTestSuite } = require('./test_suite');
 const { runSecuritySuite } = require('./test_admin_dashboard');
-const { pool } = require('../db');
+const { pool, initDB } = require('../db');
 
 async function main() {
   console.log('========================================================');
@@ -14,6 +14,9 @@ async function main() {
   console.log('========================================================');
 
   const start = Date.now();
+
+  // Asegurar migración de esquema en Neon antes de iniciar pruebas
+  await initDB();
 
   // 1. Ejecutar Suite de Integración (23 pruebas)
   const resIntegration = await runTestSuite();
