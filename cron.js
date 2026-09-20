@@ -37,14 +37,15 @@ function formatNames(names) {
  */
 function buildReminderMessage(names, alias = ALIAS, token = null) {
   const nombresFormatted = formatNames(names);
-  const baseGreeting = (names && names.length > 1)
-    ? `¡Hola ${nombresFormatted}! Les recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirmen su asistencia si aún no lo han hecho. Si desean realizar un presente, pueden hacerlo en efectivo a nuestro alias: ${alias}`
-    : `¡Hola ${nombresFormatted}! Te recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirma tu asistencia si aún no lo has hecho. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: ${alias}`;
+  const link = token
+    ? `https://cumpleanos-keyberlis.onrender.com/reconfirmar?token=${token}`
+    : `https://cumpleanos-keyberlis.onrender.com/`;
 
-  if (token) {
-    return `${baseGreeting}\n\n✨ Reconfirmá tu lugar y obtené tu Pase Definitivo VIP con QR aquí:\n👉 https://cumpleanos-keyberlis.onrender.com/reconfirmar?token=${token}`;
+  if (names && names.length > 1) {
+    return `¡Hola ${nombresFormatted}! Les recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirmen su asistencia si aún no lo han hecho. Si desean realizar un presente, pueden hacerlo en efectivo a nuestro alias: ${alias}\n\nPara confirmar su asistencia, ingresen a la siguiente dirección:\n${link}`;
   }
-  return baseGreeting;
+
+  return `¡Hola ${nombresFormatted}! Te recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirma tu asistencia si aún no lo has hecho. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: ${alias}\n\nPara confirmar tu asistencia, ingresa a la siguiente dirección:\n${link}`;
 }
 
 /**
