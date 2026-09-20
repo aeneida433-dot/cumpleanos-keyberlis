@@ -10,6 +10,7 @@ require('dotenv').config();
 
 const TIMEZONE = process.env.TIMEZONE || 'America/Argentina/Buenos_Aires';
 const ALIAS = process.env.ALIAS_REGALO || 'key.2710';
+const DIRECCION_EVENTO = process.env.DIRECCION_EVENTO || 'French 10351 Libertador';
 
 // Utilidad para retardo (pausa de seguridad anti-ban)
 function sleep(ms) {
@@ -33,10 +34,10 @@ function formatNames(names) {
 
 /**
  * Construye el mensaje cálido de recordatorio para un invitado individual o un grupo familiar
- * En modo oficial (6 de noviembre): incluye enlace personalizado de reconfirmación (Doble Check).
+ * En modo oficial (6 de noviembre): incluye enlace personalizado de reconfirmación (Doble Check) y dirección oficial.
  * En modo prueba (antes del 6 de noviembre): no incluye enlace de reconfirmación para no generar la segunda confirmación prematura.
  */
-function buildReminderMessage(names, alias = ALIAS, token = null, esPrueba = false) {
+function buildReminderMessage(names, alias = ALIAS, token = null, esPrueba = false, direccion = DIRECCION_EVENTO) {
   const nombresFormatted = formatNames(names);
   const esGrupo = names && names.length > 1;
 
@@ -50,6 +51,8 @@ function buildReminderMessage(names, alias = ALIAS, token = null, esPrueba = fal
       return (
         `👑 *¡Cuenta regresiva final, ${nombresFormatted}!* ✨💖\n\n` +
         `¡Cada vez falta menos para el gran día! Keyberlis celebra sus hermosos 15 años y para ella y nuestra familia significa muchísimo compartir esta noche mágica con ustedes. 🌸🥂\n\n` +
+        `📍 *Lugar / Salón:*\n` +
+        `${direccion} 🪩✨\n\n` +
         `🎁 *Presente / Lluvia de sobres:*\n` +
         `Si desean tener un detalle en efectivo con la quinceañera, les compartimos nuestro alias:\n` +
         `👉 *${alias}* 💌✨\n\n` +
@@ -63,6 +66,8 @@ function buildReminderMessage(names, alias = ALIAS, token = null, esPrueba = fal
     return (
       `👑 *¡Cuenta regresiva final, ${nombresFormatted}!* ✨💖\n\n` +
       `¡Mañana es el gran día! Keyberlis celebra sus hermosos 15 años y para ella y nuestra familia significa muchísimo compartir esta noche mágica con ustedes. 🌸🥂\n\n` +
+      `📍 *Lugar / Salón:*\n` +
+      `${direccion} 🪩✨\n\n` +
       `🎁 *Presente / Lluvia de sobres:*\n` +
       `Si desean tener un detalle en efectivo con la quinceañera, les compartimos nuestro alias:\n` +
       `👉 *${alias}* 💌✨\n\n` +
@@ -78,6 +83,8 @@ function buildReminderMessage(names, alias = ALIAS, token = null, esPrueba = fal
     return (
       `👑 *¡Cuenta regresiva final, ${nombresFormatted}!* ✨💖\n\n` +
       `¡Cada vez falta menos para el gran día! Keyberlis celebra sus hermosos 15 años y para ella y nuestra familia significa muchísimo compartir esta noche mágica contigo. 🌸🥂\n\n` +
+      `📍 *Lugar / Salón:*\n` +
+      `${direccion} 🪩✨\n\n` +
       `🎁 *Presente / Lluvia de sobres:*\n` +
       `Si deseas tener un detalle en efectivo con la quinceañera, te compartimos nuestro alias:\n` +
       `👉 *${alias}* 💌✨\n\n` +
@@ -91,6 +98,8 @@ function buildReminderMessage(names, alias = ALIAS, token = null, esPrueba = fal
   return (
     `👑 *¡Cuenta regresiva final, ${nombresFormatted}!* ✨💖\n\n` +
     `¡Mañana es el gran día! Keyberlis celebra sus hermosos 15 años y para ella y nuestra familia significa muchísimo compartir esta noche mágica contigo. 🌸🥂\n\n` +
+    `📍 *Lugar / Salón:*\n` +
+    `${direccion} 🪩✨\n\n` +
     `🎁 *Presente / Lluvia de sobres:*\n` +
     `Si deseas tener un detalle en efectivo con la quinceañera, te compartimos nuestro alias:\n` +
     `👉 *${alias}* 💌✨\n\n` +
@@ -299,5 +308,6 @@ module.exports = {
   ejecutarRecordatorios,
   limpiarSesionesHuerfanas,
   formatNames,
-  buildReminderMessage
+  buildReminderMessage,
+  DIRECCION_EVENTO
 };

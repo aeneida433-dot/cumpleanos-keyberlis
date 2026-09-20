@@ -100,6 +100,11 @@ async function runTestSuite() {
     'buildReminderMessage en modo prueba omite enlace de reconfirmación y no genera la 2da confirmación'
   );
 
+  assert(
+    msgOficial.includes('French 10351 Libertador') && msgPrueba.includes('French 10351 Libertador'),
+    'buildReminderMessage incluye la dirección oficial French 10351 Libertador en todos los modos'
+  );
+
   // 3. Base de Datos Neon (Familia con mismo teléfono)
   const testPhone = '5491199990001';
   try {
