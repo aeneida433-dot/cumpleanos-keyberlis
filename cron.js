@@ -42,10 +42,30 @@ function buildReminderMessage(names, alias = ALIAS, token = null) {
     : `https://cumpleanos-keyberlis.onrender.com/`;
 
   if (names && names.length > 1) {
-    return `¡Hola ${nombresFormatted}! Les recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirmen su asistencia si aún no lo han hecho. Si desean realizar un presente, pueden hacerlo en efectivo a nuestro alias: ${alias}\n\nPara confirmar su asistencia, ingresen a la siguiente dirección:\n${link}`;
+    return (
+      `👑 *¡Cuenta regresiva final, ${nombresFormatted}!* ✨💖\n\n` +
+      `¡Mañana es el gran día! Keyberlis celebra sus hermosos 15 años y para ella y nuestra familia significa muchísimo compartir esta noche mágica con ustedes. 🌸🥂\n\n` +
+      `🎁 *Presente / Lluvia de sobres:*\n` +
+      `Si desean tener un detalle en efectivo con la quinceañera, les compartimos nuestro alias:\n` +
+      `👉 *${alias}* 💌✨\n\n` +
+      `✅ *Por favor validen su asistencia:*\n` +
+      `Ingresen en este enlace para confirmar definitivamente sus lugares en la fiesta:\n` +
+      `🔗 ${link}\n\n` +
+      `¡Gracias por acompañarnos y ser parte de este sueño! 💖🪩✨🎈`
+    );
   }
 
-  return `¡Hola ${nombresFormatted}! Te recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirma tu asistencia si aún no lo has hecho. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: ${alias}\n\nPara confirmar tu asistencia, ingresa a la siguiente dirección:\n${link}`;
+  return (
+    `👑 *¡Cuenta regresiva final, ${nombresFormatted}!* ✨💖\n\n` +
+    `¡Mañana es el gran día! Keyberlis celebra sus hermosos 15 años y para ella y nuestra familia significa muchísimo compartir esta noche mágica contigo. 🌸🥂\n\n` +
+    `🎁 *Presente / Lluvia de sobres:*\n` +
+    `Si deseas tener un detalle en efectivo con la quinceañera, te compartimos nuestro alias:\n` +
+    `👉 *${alias}* 💌✨\n\n` +
+    `✅ *Por favor valida tu asistencia:*\n` +
+    `Ingresa en este enlace para confirmar definitivamente tu lugar en la fiesta:\n` +
+    `🔗 ${link}\n\n` +
+    `¡Gracias por acompañarnos y ser parte de este sueño! 💖🪩✨🎈`
+  );
 }
 
 /**

@@ -56,14 +56,14 @@ async function runTestSuite() {
 
   const msgMultiple = buildReminderMessage(['Juan', 'María', 'Sofía'], 'key.2710');
   assert(
-    msgMultiple.includes('¡Hola Juan, María y Sofía! Les recordamos que mañana es la gran fiesta de 15 años de Keyberlis.') &&
+    msgMultiple.includes('👑 *¡Cuenta regresiva final, Juan, María y Sofía!*') &&
     msgMultiple.includes('key.2710'),
     'Mensaje consolidado para múltiples personas incluye texto y alias exacto'
   );
 
   const msgSingle = buildReminderMessage(['Juan'], 'key.2710');
   assert(
-    msgSingle.includes('¡Hola Juan! Te recordamos que mañana es la gran fiesta de 15 años de Keyberlis.') &&
+    msgSingle.includes('👑 *¡Cuenta regresiva final, Juan!*') &&
     msgSingle.includes('key.2710'),
     'Mensaje individual incluye texto singular y alias exacto'
   );
@@ -103,7 +103,7 @@ async function runTestSuite() {
     const group = phoneGroups.get(testPhone);
     const generatedMsg = buildReminderMessage(group.names, 'key.2710');
     assert(
-      generatedMsg.includes('¡Hola Juan Test, María Test y Sofía Test! Les recordamos'),
+      generatedMsg.includes('👑 *¡Cuenta regresiva final, Juan Test, María Test y Sofía Test!*'),
       'La agrupación consolidó los 3 nombres de la familia en un solo mensaje'
     );
 

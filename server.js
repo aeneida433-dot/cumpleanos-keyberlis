@@ -77,7 +77,7 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('sslmode=requi
 const { initDB, query } = require('./db');
 const { normalizePhone } = require('./lib/phoneNormalizer');
 const { initWhatsApp, enviarMensaje, isReady, isAuthenticated, getLatestQR, getLatestQRDataURL, getLoadingState, getRecentLogs, setSocketIO, refrescarQR } = require('./whatsapp');
-const { initCron, ejecutarRecordatorios } = require('./cron');
+const { initCron, ejecutarRecordatorios, buildReminderMessage } = require('./cron');
 
 const app = express();
 const server = http.createServer(app);
@@ -602,7 +602,7 @@ app.post('/api/test-reminder', authenticateAdmin, async (req, res) => {
   }
 
   const alias = process.env.ALIAS_REGALO || 'key.2710';
-  const mensajePrueba = `¡Hola! Te recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirma tu asistencia si aún no lo han hecho. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: ${alias}`;
+  const mensajePrueba = buildReminderMessage(['Invitado de Prueba'], alias);
 
   const resultado = await enviarMensaje(phoneRes.formatted, mensajePrueba);
   return res.json({
