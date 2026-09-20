@@ -24,6 +24,19 @@ let loadingPercent = 0;
 let loadingMessage = '';
 const recentLogs = [];
 
+let saveDebounceTimer = null;
+
+function debouncedSaveSession() {
+  if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+  saveDebounceTimer = setTimeout(async () => {
+    try {
+      await pgStore.saveFolder(AUTH_DIR, 'baileys_session');
+    } catch (err) {
+      logEvent('⚠️ [WhatsApp] Error al respaldar sesión diferida en Neon: ' + err.message);
+    }
+  }, 1000);
+}
+
 function setSocketIO(io) {
   ioInstance = io;
 }
@@ -97,6 +110,10 @@ async function initWhatsApp() {
         } else {
           logEvent('🚪 [WhatsApp] Sesión cerrada por el usuario o desvinculada. Limpiando credenciales...');
           isClientAuthenticated = false;
+          if (saveDebounceTimer) {
+            clearTimeout(saveDebounceTimer);
+            saveDebounceTimer = null;
+          }
           await pgStore.delete('baileys_session');
           try {
             await fs.promises.rm(AUTH_DIR, { recursive: true, force: true });
@@ -112,7 +129,11 @@ async function initWhatsApp() {
         loadingPercent = 0;
         logEvent('✅ [WhatsApp] ¡Cliente Baileys conectado 100% y listo para enviar mensajes!');
 
-        // Guardar sesión en Neon
+        // Cancelar timer de debounce si hubiese uno pendiente y respaldar inmediatamente
+        if (saveDebounceTimer) {
+          clearTimeout(saveDebounceTimer);
+          saveDebounceTimer = null;
+        }
         await pgStore.saveFolder(AUTH_DIR, 'baileys_session');
 
         if (ioInstance) {
@@ -126,8 +147,12 @@ async function initWhatsApp() {
     });
 
     sock.ev.on('creds.update', async () => {
-      await saveCreds();
-      await pgStore.saveFolder(AUTH_DIR, 'baileys_session');
+      try {
+        await saveCreds();
+      } catch (err) {
+        logEvent('⚠️ [WhatsApp] Error en saveCreds: ' + err.message);
+      }
+      debouncedSaveSession();
     });
 
   } catch (err) {

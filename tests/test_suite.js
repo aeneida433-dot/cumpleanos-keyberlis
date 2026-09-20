@@ -3,12 +3,14 @@
  * Normalización Telefónica, Agrupación Familiar y Base de Datos Neon
  */
 
+const fs = require('fs');
 const path = require('path');
 const projectRoot = path.resolve(__dirname, '..');
 const { normalizePhone } = require(path.join(projectRoot, 'lib/phoneNormalizer'));
 const { formatNames, buildReminderMessage } = require(path.join(projectRoot, 'cron'));
 const { buildRSVPAlert, buildReconfirmationAlert } = require(path.join(projectRoot, 'lib/alerts'));
 const { pool, query } = require(path.join(projectRoot, 'db'));
+const PGStore = require(path.join(projectRoot, 'lib/pgStore'));
 
 async function runTestSuite() {
   console.log('\n--- 1. Pruebas de Integración y Regla de Oro Telefónica ---');
@@ -178,6 +180,76 @@ async function runTestSuite() {
     const countCheck = await query('SELECT COUNT(*)::int as total FROM invitados WHERE asiste IS NOT FALSE AND telefono = $1', [testPhone]);
     assert(countCheck.rows[0].total === 0, 'La consulta de total confirmados excluye correctamente a invitados con asiste = false');
     await query('DELETE FROM invitados WHERE telefono = $1', [testPhone]);
+
+    // 7. Prueba de Resiliencia de PGStore ante Archivos Efímeros (tctoken, ENOENT y Concurrencia)
+    const testAuthDir = path.join(projectRoot, '.test_baileys_resilience');
+    const testExtractDir = path.join(projectRoot, '.test_baileys_extracted');
+    const testSessionName = 'baileys_session_test_resilience';
+
+    try {
+      await fs.promises.mkdir(testAuthDir, { recursive: true });
+      await fs.promises.writeFile(path.join(testAuthDir, 'creds.json'), JSON.stringify({ me: { id: 'test' } }), 'utf8');
+      
+      const pgTestStore = new PGStore({ dataPath: testAuthDir });
+
+      // Simular readdir devolviendo un archivo efímero que desaparece (phantom tctoken)
+      const origReaddir = fs.promises.readdir;
+      fs.promises.readdir = async function(dirPath, opts) {
+        const res = await origReaddir.call(fs.promises, dirPath, opts);
+        if (opts && opts.withFileTypes) {
+          // Agregar una entrada de archivo fantasma que no existe en disco
+          return [
+            ...res,
+            { name: 'tctoken-1658298485:1401:lid.json', isFile: () => true, isDirectory: () => false }
+          ];
+        }
+        return res;
+      };
+
+      let phantomJson;
+      try {
+        phantomJson = await pgTestStore.folderToJson(testAuthDir);
+      } finally {
+        fs.promises.readdir = origReaddir;
+      }
+
+      assert(
+        phantomJson && phantomJson['creds.json'] && !phantomJson['tctoken-1658298485:1401:lid.json'],
+        'folderToJson ignora archivos efímeros eliminados concurrentemente (tctoken) sin lanzar ENOENT'
+      );
+
+      // Guardar sesión y verificar en Neon
+      const saveRes = await pgTestStore.saveFolder(testAuthDir, testSessionName);
+      assert(saveRes === true, 'saveFolder persiste exitosamente la sesión en la base de datos Neon');
+
+      const existsRes = await pgTestStore.sessionExists(testSessionName);
+      assert(existsRes === true, 'sessionExists confirma existencia de la sesión respaldada en Neon');
+
+      // Prueba de concurrencia: disparar múltiples guardados simultáneos
+      const concurrentSaves = await Promise.all([
+        pgTestStore.saveFolder(testAuthDir, testSessionName),
+        pgTestStore.saveFolder(testAuthDir, testSessionName),
+        pgTestStore.saveFolder(testAuthDir, testSessionName)
+      ]);
+      assert(
+        concurrentSaves.every(r => r === true),
+        'saveFolder serializa múltiples llamadas concurrentes mediante cola mutex sin conflictos'
+      );
+
+      // Restauración de sesión
+      await fs.promises.mkdir(testExtractDir, { recursive: true });
+      const extractRes = await pgTestStore.extractFolder(testExtractDir, testSessionName);
+      assert(extractRes === true, 'extractFolder restaura fielmente los archivos de sesión desde Neon');
+
+      // Limpieza de sesión de prueba
+      await pgTestStore.delete(testSessionName);
+      const afterDeleteExists = await pgTestStore.sessionExists(testSessionName);
+      assert(afterDeleteExists === false, 'delete elimina la sesión de prueba de Neon PostgreSQL');
+
+    } finally {
+      try { await fs.promises.rm(testAuthDir, { recursive: true, force: true }); } catch {}
+      try { await fs.promises.rm(testExtractDir, { recursive: true, force: true }); } catch {}
+    }
 
   } catch (err) {
     console.error('Error durante prueba de base de datos:', err);
