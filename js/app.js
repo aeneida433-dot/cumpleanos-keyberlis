@@ -277,9 +277,6 @@ function initRSVPForm() {
     const phoneInput = document.getElementById("guest-phone");
     const phone = phoneInput ? phoneInput.value.trim() : "";
     const attendingRadio = document.querySelector('input[name="attending"]:checked');
-    const plusOnes = document.getElementById("guest-plus-ones") ? document.getElementById("guest-plus-ones").value : "0";
-    const message = document.getElementById("guest-message").value.trim();
-    const song = document.getElementById("guest-song").value.trim();
 
     if (!firstName || !lastName) {
       showToast("⚠️ Por favor escribe tu Nombre y Apellido");
@@ -304,8 +301,6 @@ function initRSVPForm() {
       phone: phone,
       attending: attending,
       plusOnes: "0",
-      song: song || "N/A",
-      message: message || "¡Muchas felicidades!",
       date: new Date().toLocaleDateString("es-ES")
     };
 
@@ -357,13 +352,6 @@ function sendWhatsAppConfirmation(data) {
 
   if (data.attending) {
     waText += `🎫 *Pase:* Individual (1 persona)\n`;
-    if (data.song && data.song !== "N/A") {
-      waText += `🎵 *Canción sugerida:* ${data.song}\n`;
-    }
-  }
-
-  if (data.message) {
-    waText += `💌 *Mensaje:* "${data.message}"\n\n`;
   }
 
   waText += `📍 *Lugar:* ${config.venueName}\n`;

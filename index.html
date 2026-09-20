@@ -37,14 +37,6 @@
         <span>LOS 15 DE KEYBERLIS</span>
       </div>
       <div class="top-actions">
-        <!-- Control de Música Ambiental -->
-        <button id="music-toggle" class="icon-btn" title="Activar/Pausar Música de Fiesta" aria-label="Música">
-          <i class="fa-solid fa-compact-disc"></i>
-        </button>
-        <!-- Compartir por WhatsApp -->
-        <button onclick="shareInvitation()" class="icon-btn" title="Compartir invitación por WhatsApp" aria-label="Compartir">
-          <i class="fa-brands fa-whatsapp"></i>
-        </button>
         <!-- Panel Anfitrión -->
         <button id="admin-btn" class="icon-btn" title="Configuración de Anfitrión y Lista de Invitados" aria-label="Configuración">
           <i class="fa-solid fa-sliders"></i>
@@ -195,17 +187,6 @@
           <span style="font-size: 0.82rem; color: #cbd5e1;">Pase estrictamente individual (1 persona por invitación).</span>
         </div>
 
-        <!-- Canción sugerida para la fiesta -->
-        <div class="form-group">
-          <label for="guest-song">Canción que no puede faltar en la fiesta (Opcional)</label>
-          <input type="text" id="guest-song" class="form-input" placeholder="Ej: Dua Lipa - Levitating">
-        </div>
-
-        <!-- Mensaje o Felicitación -->
-        <div class="form-group">
-          <label for="guest-message">Mensaje especial para Keyberlis (Opcional)</label>
-          <textarea id="guest-message" class="form-textarea" rows="3" placeholder="Escribe aquí tus mejores deseos para la quinceañera..."></textarea>
-        </div>
 
         <!-- Botón de Confirmación por WhatsApp -->
         <button type="submit" class="btn-whatsapp-confirm">
@@ -380,6 +361,6 @@
     }
   </script>
   <!-- Script principal con cache busting -->
-  <script src="js/app.js?v=2.0.3"></script>
+  <script src="js/app.js?v=2.0.4"></script>
 </body>
 </html>

@@ -130,6 +130,16 @@ async function runSecuritySuite() {
         const testCorrect = validateAndToggleAdminModal('key27102011', mockModal);
         assert(testCorrect.success === true && mockModal.style.display === 'flex', 'Simulación: Clave exacta key27102011 cambia #admin-modal a display: flex');
 
+        // 12. Aserción de Limpieza de Botonera: Música y WhatsApp eliminados, solo #admin-btn activo
+        const hasMusicBtn = indexHtmlContent.includes('id="music-toggle"');
+        const hasAdminBtn = indexHtmlContent.includes('id="admin-btn"');
+        assert(!hasMusicBtn && hasAdminBtn, 'Botonera superior limpia: solo #admin-btn activo (música y WhatsApp eliminados)');
+
+        // 13. Aserción de Limpieza de Formulario RSVP: Campos opcionales eliminados
+        const hasSongInput = indexHtmlContent.includes('id="guest-song"');
+        const hasMessageTextarea = indexHtmlContent.includes('id="guest-message"');
+        assert(!hasSongInput && !hasMessageTextarea, 'Formulario RSVP simplificado: campos de canción y mensaje removidos');
+
         server.close(() => {
           resolveAll({ passed, failed });
         });
