@@ -76,7 +76,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_invitados_token ON invitados(token_reconfi
 - Al confirmar con éxito:
   - Muestra animación de confeti.
   - Genera la tarjeta holográfica VIP con el título **PASE DE ACCESO DEFINITIVO - ASISTENCIA RECONFIRMADA**.
-  - Muestra el nombre del invitado, fecha de la fiesta (Sábado 07 de Noviembre de 2026), horario y lugar (French 10551).
+  - Muestra el nombre del invitado, fecha de la fiesta (Sábado 07 de Noviembre de 2026), horario y lugar (French 10351 Libertador).
   - Genera el código QR de acreditación.
   - Ofrece botón para guardar/descargar la tarjeta.
 

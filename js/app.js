@@ -12,8 +12,8 @@ const API_BASE = (typeof window !== "undefined" && (window.location.hostname ===
 const DEFAULT_CONFIG = {
   birthdayGirl: "Keyberlis",
   eventDate: "2026-11-07T21:00:00",
-  venueName: "French 10551",
-  venueAddress: "French 10551",
+  venueName: "French 10351 Libertador",
+  venueAddress: "French 10351 Libertador",
   eventHours: "21:00 a 6:00",
   whatsappNumber: "", // Configurable en el panel o directo
   eventTitle: "Los 15 de Keyberlis"
