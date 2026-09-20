@@ -33,15 +33,33 @@ function formatNames(names) {
 
 /**
  * Construye el mensaje cálido de recordatorio para un invitado individual o un grupo familiar
- * Incluye enlace personalizado de reconfirmación (Doble Check) si se suministra token UUID
+ * En modo oficial (6 de noviembre): incluye enlace personalizado de reconfirmación (Doble Check).
+ * En modo prueba (antes del 6 de noviembre): no incluye enlace de reconfirmación para no generar la segunda confirmación prematura.
  */
-function buildReminderMessage(names, alias = ALIAS, token = null) {
+function buildReminderMessage(names, alias = ALIAS, token = null, esPrueba = false) {
   const nombresFormatted = formatNames(names);
-  const link = token
+  const esGrupo = names && names.length > 1;
+
+  // Si es prueba o no hay token, enlazamos a la página principal de la invitación sin generar la segunda confirmación
+  const link = (token && !esPrueba)
     ? `https://cumpleanos-keyberlis.onrender.com/reconfirmar?token=${token}`
     : `https://cumpleanos-keyberlis.onrender.com/`;
 
-  if (names && names.length > 1) {
+  if (esGrupo) {
+    if (esPrueba || !token) {
+      return (
+        `👑 *¡Cuenta regresiva final, ${nombresFormatted}!* ✨💖\n\n` +
+        `¡Cada vez falta menos para el gran día! Keyberlis celebra sus hermosos 15 años y para ella y nuestra familia significa muchísimo compartir esta noche mágica con ustedes. 🌸🥂\n\n` +
+        `🎁 *Presente / Lluvia de sobres:*\n` +
+        `Si desean tener un detalle en efectivo con la quinceañera, les compartimos nuestro alias:\n` +
+        `👉 *${alias}* 💌✨\n\n` +
+        `💌 *Detalles del evento:*\n` +
+        `Pueden consultar la ubicación y la invitación aquí:\n` +
+        `🔗 ${link}\n\n` +
+        `¡Gracias por acompañarnos y ser parte de este sueño! 💖🪩✨🎈`
+      );
+    }
+
     return (
       `👑 *¡Cuenta regresiva final, ${nombresFormatted}!* ✨💖\n\n` +
       `¡Mañana es el gran día! Keyberlis celebra sus hermosos 15 años y para ella y nuestra familia significa muchísimo compartir esta noche mágica con ustedes. 🌸🥂\n\n` +
@@ -50,6 +68,21 @@ function buildReminderMessage(names, alias = ALIAS, token = null) {
       `👉 *${alias}* 💌✨\n\n` +
       `✅ *Por favor validen su asistencia:*\n` +
       `Ingresen en este enlace para confirmar definitivamente sus lugares en la fiesta:\n` +
+      `🔗 ${link}\n\n` +
+      `¡Gracias por acompañarnos y ser parte de este sueño! 💖🪩✨🎈`
+    );
+  }
+
+  // Invitado individual
+  if (esPrueba || !token) {
+    return (
+      `👑 *¡Cuenta regresiva final, ${nombresFormatted}!* ✨💖\n\n` +
+      `¡Cada vez falta menos para el gran día! Keyberlis celebra sus hermosos 15 años y para ella y nuestra familia significa muchísimo compartir esta noche mágica contigo. 🌸🥂\n\n` +
+      `🎁 *Presente / Lluvia de sobres:*\n` +
+      `Si deseas tener un detalle en efectivo con la quinceañera, te compartimos nuestro alias:\n` +
+      `👉 *${alias}* 💌✨\n\n` +
+      `💌 *Detalles del evento:*\n` +
+      `Puedes consultar la ubicación y la invitación aquí:\n` +
       `🔗 ${link}\n\n` +
       `¡Gracias por acompañarnos y ser parte de este sueño! 💖🪩✨🎈`
     );
@@ -69,12 +102,31 @@ function buildReminderMessage(names, alias = ALIAS, token = null) {
 }
 
 /**
- * Ejecuta el envío masivo de recordatorios agrupados por teléfono con protección Anti-Ban
- * @returns {Promise<{ totalInvitados: number, totalTelefonos: number, enviados: number, fallidos: number }>}
+ * Ejecuta el envío de recordatorios agrupados por teléfono con protección Anti-Ban.
+ * En modo prueba (esPrueba = true o antes del 06 de noviembre):
+ *   - No genera el enlace de reconfirmación (no genera la 2da confirmación).
+ *   - NO actualiza recordatorio_enviado = true, preservando a los invitados para el 6 de noviembre.
+ * En modo oficial (esPrueba = false):
+ *   - Incluye enlace de reconfirmación exclusivo (token UUID).
+ *   - Marca recordatorio_enviado = true en Neon PostgreSQL.
+ * @param {Object} options
+ * @param {boolean} [options.esPrueba]
+ * @returns {Promise<{ totalInvitados: number, totalTelefonos: number, enviados: number, fallidos: number, esPrueba: boolean }>}
  */
-async function ejecutarRecordatorios() {
+async function ejecutarRecordatorios(options = {}) {
+  let esPrueba = options.esPrueba;
+  if (esPrueba === undefined) {
+    const ahora = new Date();
+    const fechaOficial = new Date('2026-11-06T12:00:00-03:00');
+    esPrueba = ahora < fechaOficial;
+  }
+
+  const modoTexto = esPrueba
+    ? '🧪 MODO PRUEBA ANTICIPADA (Sin segunda confirmación - Preserva pendientes para el 6 de Noviembre)'
+    : '👑 ENVÍO OFICIAL DEFINITIVO (6 de Noviembre - Con segunda confirmación)';
+
   console.log('\n========================================================');
-  console.log('⏰ [Cron Job] INICIANDO ENVÍO DE RECORDATORIOS (15 AÑOS KEYBERLIS)');
+  console.log(`⏰ [Cron Job] INICIANDO ENVÍO DE RECORDATORIOS: ${modoTexto}`);
   console.log('========================================================');
 
   if (!isReady()) {
@@ -84,19 +136,24 @@ async function ejecutarRecordatorios() {
       totalTelefonos: 0,
       enviados: 0,
       fallidos: 0,
+      esPrueba,
       error: 'WhatsApp no está conectado'
     };
   }
 
   try {
-    const dbResult = await query(
-      'SELECT id, nombre, telefono, token_reconfirmacion FROM invitados WHERE recordatorio_enviado = false ORDER BY id ASC'
-    );
+    // Si es prueba: seleccionamos a los confirmados que no hayan reconfirmado aún
+    // Si es oficial: seleccionamos a todos los que asisten y no hayan sido notificados o reconfirmados
+    const querySql = esPrueba
+      ? 'SELECT id, nombre, telefono, token_reconfirmacion FROM invitados WHERE asiste IS NOT FALSE AND (reconfirmado = false OR reconfirmado IS NULL) ORDER BY id ASC'
+      : 'SELECT id, nombre, telefono, token_reconfirmacion FROM invitados WHERE asiste IS NOT FALSE AND (recordatorio_enviado = false OR reconfirmado = false OR reconfirmado IS NULL) ORDER BY id ASC';
+
+    const dbResult = await query(querySql);
     const invitados = dbResult.rows;
 
     if (invitados.length === 0) {
-      console.log('ℹ️ [Cron] No hay invitados pendientes de recordatorio en Neon.');
-      return { totalInvitados: 0, totalTelefonos: 0, enviados: 0, fallidos: 0 };
+      console.log(`ℹ️ [Cron] No hay invitados pendientes para ${esPrueba ? 'prueba anticipada' : 'envío oficial'} en Neon.`);
+      return { totalInvitados: 0, totalTelefonos: 0, enviados: 0, fallidos: 0, esPrueba };
     }
 
     // Regla de Agrupación Familiar: Agrupar invitados por número de teléfono
@@ -118,35 +175,42 @@ async function ejecutarRecordatorios() {
     }
 
     const groups = Array.from(phoneGroups.entries());
-    console.log(`📋 [Cron] Se encontraron ${invitados.length} invitados pendientes agrupados en ${groups.length} teléfonos.`);
+    console.log(`📋 [Cron] Se encontraron ${invitados.length} invitados (${esPrueba ? 'prueba' : 'oficial'}) agrupados en ${groups.length} teléfonos.`);
 
     let totalEnviados = 0;
     let totalFallidos = 0;
 
     for (let i = 0; i < groups.length; i++) {
       const [telefono, data] = groups[i];
-      const token = (data.tokens && data.tokens.length > 0) ? data.tokens[0] : null;
-      const mensaje = buildReminderMessage(data.names, ALIAS, token);
+      // En modo prueba, NO enviamos token para no generar la segunda confirmación prematuramente
+      const token = esPrueba ? null : ((data.tokens && data.tokens.length > 0) ? data.tokens[0] : null);
+      const mensaje = buildReminderMessage(data.names, ALIAS, token, esPrueba);
 
-      console.log(`\n📨 [${i + 1}/${groups.length}] Enviando recordatorio consolidado a ${telefono} (${data.names.join(', ')})...`);
+      console.log(`\n📨 [${i + 1}/${groups.length}] Enviando recordatorio (${esPrueba ? 'PRUEBA' : 'OFICIAL'}) a ${telefono} (${data.names.join(', ')})...`);
 
       const resultado = await enviarMensaje(telefono, mensaje);
 
       if (resultado.success) {
         totalEnviados += data.ids.length;
-        // Persistencia inmediata: marcar a todos los integrantes como recordatorio_enviado = true
-        await query(
-          'UPDATE invitados SET recordatorio_enviado = true WHERE id = ANY($1::int[])',
-          [data.ids]
-        );
-        console.log(`✅ [Cron] Entregado con éxito y registrado en Neon para IDs: [${data.ids.join(', ')}]`);
 
-        // Mejora 16: Tabla de Auditoría de Envíos en Neon
+        if (!esPrueba) {
+          // Solo en el envío oficial del 6 de noviembre se marca como consumido en Neon
+          await query(
+            'UPDATE invitados SET recordatorio_enviado = true WHERE id = ANY($1::int[])',
+            [data.ids]
+          );
+          console.log(`✅ [Cron Oficial] Entregado con éxito y registrado como NOTIFICADO en Neon para IDs: [${data.ids.join(', ')}]`);
+        } else {
+          console.log(`🧪 [Prueba Anticipada] Entregado con éxito a ${telefono}. Invitado preservado como pendiente para el 6 de noviembre.`);
+        }
+
+        // Registro de Auditoría en logs_envio
         try {
           const nombresAgrupados = data.names.join(', ');
+          const auditMsg = esPrueba ? `[PRUEBA ANTICIPADA] ${mensaje}` : mensaje;
           await query(
             'INSERT INTO logs_envio (telefono, nombres_agrupados, mensaje_enviado, fecha_envio) VALUES ($1, $2, $3, NOW())',
-            [telefono, nombresAgrupados, mensaje]
+            [telefono, nombresAgrupados, auditMsg]
           );
           console.log(`📋 [Auditoría] Registro de envío guardado en logs_envio para ${telefono}`);
         } catch (auditErr) {
@@ -159,21 +223,22 @@ async function ejecutarRecordatorios() {
 
       // Cola secuencial Anti-Ban: pausa aleatoria entre 4 y 8 segundos entre envíos
       if (i < groups.length - 1) {
-        const jitter = Math.floor(Math.random() * 4000) + 4000; // 4000ms a 8000ms
+        const jitter = Math.floor(Math.random() * 4000) + 4000;
         console.log(`⏳ [Anti-Ban] Esperando ${(jitter / 1000).toFixed(1)} segundos antes del próximo envío...`);
         await sleep(jitter);
       }
     }
 
     console.log('\n========================================================');
-    console.log(`🏁 [Cron Job Finalizado] Total invitados: ${invitados.length} | Familias/Teléfonos: ${groups.length} | Enviados: ${totalEnviados} | Fallidos: ${totalFallidos}`);
+    console.log(`🏁 [Cron Job Finalizado] Modo: ${esPrueba ? 'PRUEBA' : 'OFICIAL'} | Total invitados: ${invitados.length} | Familias: ${groups.length} | Enviados: ${totalEnviados} | Fallidos: ${totalFallidos}`);
     console.log('========================================================\n');
 
     return {
       totalInvitados: invitados.length,
       totalTelefonos: groups.length,
       enviados: totalEnviados,
-      fallidos: totalFallidos
+      fallidos: totalFallidos,
+      esPrueba
     };
 
   } catch (error) {
@@ -214,7 +279,7 @@ function initCron() {
 
   cron.schedule(cronExpression, async () => {
     console.log('🔔 [Cron Trigger] ¡Se ha alcanzado la fecha programada (6 de Noviembre 12:00 PM)!');
-    await ejecutarRecordatorios();
+    await ejecutarRecordatorios({ esPrueba: false });
   }, {
     scheduled: true,
     timezone: TIMEZONE

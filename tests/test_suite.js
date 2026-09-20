@@ -82,6 +82,24 @@ async function runTestSuite() {
     'buildReconfirmationAlert genera el formato exacto de la Opción C'
   );
 
+  // 2.2 Pruebas de Modo Prueba vs Modo Oficial en buildReminderMessage
+  const msgOficial = buildReminderMessage(['Valentina'], 'key.2710', 'token-val-123', false);
+  assert(
+    msgOficial.includes('¡Mañana es el gran día!') &&
+    msgOficial.includes('https://cumpleanos-keyberlis.onrender.com/reconfirmar?token=token-val-123') &&
+    msgOficial.includes('valida tu asistencia'),
+    'buildReminderMessage en modo oficial (6 de noviembre) incluye enlace de reconfirmación y texto de mañana'
+  );
+
+  const msgPrueba = buildReminderMessage(['Valentina'], 'key.2710', 'token-val-123', true);
+  assert(
+    msgPrueba.includes('¡Cada vez falta menos para el gran día!') &&
+    !msgPrueba.includes('reconfirmar?token=') &&
+    msgPrueba.includes('https://cumpleanos-keyberlis.onrender.com/') &&
+    !msgPrueba.includes('valida tu asistencia'),
+    'buildReminderMessage en modo prueba omite enlace de reconfirmación y no genera la 2da confirmación'
+  );
+
   // 3. Base de Datos Neon (Familia con mismo teléfono)
   const testPhone = '5491199990001';
   try {

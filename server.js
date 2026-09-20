@@ -525,16 +525,24 @@ app.post('/api/admin/forzar-recordatorio', (req, res) => {
     });
   }
 
-  console.log('⚡ [Admin] Forzado manual de recordatorios autorizado con token administrativo seguro.');
+  const ahora = new Date();
+  const fechaOficial = new Date('2026-11-06T12:00:00-03:00');
+  const esPrueba = req.query.modo === 'oficial' ? false : (ahora < fechaOficial);
+
+  console.log(`⚡ [Admin] Forzado manual de recordatorios (${esPrueba ? 'MODO PRUEBA ANTICIPADA' : 'OFICIAL'}) autorizado con token administrativo seguro.`);
 
   // Disparo asíncrono en segundo plano sin bloquear la respuesta HTTP (Fire & Forget)
-  ejecutarRecordatorios().catch((err) => {
+  ejecutarRecordatorios({ esPrueba }).catch((err) => {
     console.error('❌ [Admin Error] Error en la ejecución asíncrona de recordatorios:', err.message);
   });
 
   return res.status(200).json({
     success: true,
-    message: 'Envío masivo iniciado en segundo plano de forma segura.'
+    esPrueba,
+    message: 'Envío masivo iniciado en segundo plano de forma segura.',
+    info: esPrueba
+      ? 'Envío de prueba iniciado. Los invitados se mantendrán pendientes para el 6 de noviembre sin generar la segunda confirmación.'
+      : 'Envío masivo oficial definitivo.'
   });
 });
 
@@ -627,16 +635,23 @@ app.get('/api/debug/whatsapp', (req, res) => {
 // 6. DISPARO MANUAL DE RECORDATORIOS: POST /api/admin/enviar-recordatorios (Fire & Forget)
 // ========================================================
 app.post('/api/admin/enviar-recordatorios', authenticateAdmin, (req, res) => {
-  console.log('⚡ [Admin] Envío manual de recordatorios iniciado desde el panel web.');
+  const ahora = new Date();
+  const fechaOficial = new Date('2026-11-06T12:00:00-03:00');
+  const esPrueba = req.query.modo === 'oficial' ? false : (ahora < fechaOficial);
+
+  console.log(`⚡ [Admin] Envío manual de recordatorios (${esPrueba ? 'MODO PRUEBA ANTICIPADA' : 'OFICIAL'}) iniciado desde el panel web.`);
 
   // Disparo asíncrono en segundo plano (Fire & Forget) para no congelar la UI ni la conexión HTTP
-  ejecutarRecordatorios().catch((err) => {
+  ejecutarRecordatorios({ esPrueba }).catch((err) => {
     console.error('❌ [Admin Error] Error en la ejecución asíncrona de recordatorios:', err.message);
   });
 
   return res.status(200).json({
     success: true,
-    message: 'Envío masivo iniciado en segundo plano de forma segura.'
+    esPrueba,
+    message: esPrueba
+      ? 'Envío de prueba iniciado en segundo plano. Los invitados se mantendrán pendientes para el 6 de noviembre sin generar segunda confirmación.'
+      : 'Envío masivo oficial iniciado en segundo plano de forma segura.'
   });
 });
 
