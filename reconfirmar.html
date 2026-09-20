@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pase de Acceso Definitivo | 15 Años Keyberlis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Montserrat:wght@300;400;600;700&family=Great+Vibes&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="css/styles.css?v=2.0.5">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <style>
+    body {
+      background: radial-gradient(circle at center, #1e1b2e 0%, #0d0b14 60%, #05040a 100%);
+      color: #fff;
+      font-family: 'Montserrat', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      margin: 0;
+    }
+    .reconfirm-card {
+      background: rgba(22, 22, 30, 0.85);
+      border: 1.5px solid rgba(226, 232, 240, 0.4);
+      border-radius: 24px;
+      max-width: 520px;
+      width: 100%;
+      padding: 32px 24px;
+      box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(226, 232, 240, 0.15);
+      backdrop-filter: blur(12px);
+      text-align: center;
+      position: relative;
+    }
+    .reconfirm-header h1 {
+      font-family: 'Great Vibes', cursive;
+      font-size: 3.2rem;
+      margin: 0;
+      color: #f8fafc;
+      text-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+    }
+    .reconfirm-header h2 {
+      font-family: 'Cinzel', serif;
+      font-size: 1.25rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #cbd5e1;
+      margin-top: 5px;
+      margin-bottom: 20px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(34, 197, 94, 0.18);
+      color: #4ade80;
+      border: 1px solid #22c55e;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+    .vip-ticket-definitivo {
+      background: linear-gradient(135deg, #13131a 0%, #222230 50%, #0f0f14 100%);
+      border: 1.5px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 24px 20px;
+      margin: 20px 0;
+      position: relative;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7), inset 0 0 15px rgba(255,255,255,0.05);
+      text-align: left;
+    }
+    .vip-ticket-definitivo::before,
+    .vip-ticket-definitivo::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 24px;
+      height: 24px;
+      background: #0d0b14;
+      border-radius: 50%;
+      transform: translateY(-50%);
+      border: 1.5px solid #e2e8f0;
+    }
+    .vip-ticket-definitivo::before { left: -13px; }
+    .vip-ticket-definitivo::after { right: -13px; }
+    .ticket-guest-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 6px;
+      margin-bottom: 12px;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.2);
+      padding-bottom: 10px;
+    }
+    .ticket-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      font-size: 0.85rem;
+      color: #cbd5e1;
+    }
+    .ticket-row strong {
+      color: #fff;
+    }
+    .ticket-qr-box {
+      background: #fff;
+      padding: 8px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin: 15px auto 5px auto;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    .btn-action-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #e2e8f0, #94a3b8);
+      color: #0f172a;
+      font-weight: 700;
+      padding: 12px 24px;
+      border-radius: 12px;
+      border: none;
+      font-size: 0.95rem;
+      cursor: pointer;
+      text-decoration: none;
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 10px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn-action-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255,255,255,0.25);
+    }
+    .btn-action-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.08);
+      color: #e2e8f0;
+      font-weight: 600;
+      padding: 10px 20px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.2);
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 10px;
+      transition: background 0.2s;
+    }
+    .btn-action-secondary:hover {
+      background: rgba(255,255,255,0.15);
+    }
+    .spinner-loader {
+      display: inline-block;
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(255,255,255,0.2);
+      border-radius: 50%;
+      border-top-color: #e2e8f0;
+      animation: spin 1s ease-in-out infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="reconfirm-card" id="card-loading">
+    <div class="spinner-loader"></div>
+    <h2 style="font-family: 'Cinzel', serif; font-size: 1.1rem; color: #cbd5e1;">Verificando tu enlace de asistencia...</h2>
+    <p style="font-size: 0.85rem; color: #94a3b8;">Por favor espera un instante mientras validamos tu registro con la lista oficial.</p>
+  </div>
+
+  <div class="reconfirm-card" id="card-error" style="display: none;">
+    <div style="font-size: 3rem; color: #ef4444; margin-bottom: 12px;"><i class="fa-solid fa-circle-exclamation"></i></div>
+    <h2 style="font-family: 'Cinzel', serif; color: #fff; font-size: 1.3rem;">Enlace No Válido</h2>
+    <p id="error-message" style="font-size: 0.9rem; color: #cbd5e1; margin-bottom: 24px;">No pudimos validar tu enlace de reconfirmación. Es posible que haya expirado o sea incorrecto.</p>
+    <a href="/" class="btn-action-primary"><i class="fa-solid fa-house"></i> Ir a la Invitación Principal</a>
+  </div>
+
+  <div class="reconfirm-card" id="card-success" style="display: none;">
+    <div class="reconfirm-header">
+      <h1>Keyberlis</h1>
+      <h2>Mis 15 Años</h2>
+    </div>
+
+    <div class="status-badge">
+      <i class="fa-solid fa-circle-check"></i> Asistencia Reconfirmada
+    </div>
+
+    <div class="vip-ticket-definitivo" id="vip-ticket-definitivo">
+      <div style="font-size: 0.72rem; letter-spacing: 2px; text-transform: uppercase; color: #94a3b8; font-weight: 700;">
+        Pase de Acceso Definitivo VIP
+      </div>
+      <div class="ticket-guest-title" id="guest-name-display">
+        Nombre Invitado
+      </div>
+
+      <div class="ticket-row">
+        <span><i class="fa-regular fa-calendar-check"></i> <strong>Fecha:</strong></span>
+        <span>Sábado 07 de Noviembre</span>
+      </div>
+      <div class="ticket-row">
+        <span><i class="fa-regular fa-clock"></i> <strong>Horario:</strong></span>
+        <span>21:00 a 06:00 hs</span>
+      </div>
+      <div class="ticket-row">
+        <span><i class="fa-solid fa-location-dot"></i> <strong>Lugar:</strong></span>
+        <span>French 10551</span>
+      </div>
+      <div class="ticket-row">
+        <span><i class="fa-solid fa-user-check"></i> <strong>Acreditación:</strong></span>
+        <span style="color: #4ade80; font-weight: 700;">Habilitada en Puerta</span>
+      </div>
+
+      <div style="text-align: center;">
+        <div class="ticket-qr-box" id="qr-container">
+          <!-- QR SVG dinámico -->
+        </div>
+      </div>
+    </div>
+
+    <p style="font-size: 0.85rem; color: #cbd5e1; margin-top: 10px;">
+      Presentá este Pase Definitivo en tu celular al ingresar al salón. ¡Te esperamos para una noche inolvidable!
+    </p>
+
+    <button type="button" class="btn-action-primary" onclick="descargarPaseDefinitivo()">
+      <i class="fa-solid fa-download"></i> Descargar Pase en Imagen
+    </button>
+    <a href="/" class="btn-action-secondary">
+      <i class="fa-solid fa-sparkles"></i> Ver Detalles del Evento
+    </a>
+  </div>
+
+  <script>
+    function createQRCodeSVG(text) {
+      return `
+        <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100" height="100" rx="8" fill="#000000"/>
+          <rect x="8" y="8" width="26" height="26" stroke="#ffffff" stroke-width="4" fill="none"/>
+          <rect x="14" y="14" width="14" height="14" fill="#ffffff"/>
+          <rect x="66" y="8" width="26" height="26" stroke="#ffffff" stroke-width="4" fill="none"/>
+          <rect x="72" y="14" width="14" height="14" fill="#ffffff"/>
+          <rect x="8" y="66" width="26" height="26" stroke="#ffffff" stroke-width="4" fill="none"/>
+          <rect x="14" y="72" width="14" height="14" fill="#ffffff"/>
+          <rect x="42" y="12" width="8" height="8" fill="#ffffff"/>
+          <rect x="52" y="24" width="6" height="6" fill="#ffffff"/>
+          <rect x="40" y="40" width="20" height="20" rx="3" fill="#ffffff"/>
+          <circle cx="50" cy="50" r="4" fill="#000000"/>
+          <rect x="68" y="44" width="8" height="8" fill="#ffffff"/>
+          <rect x="44" y="68" width="8" height="8" fill="#ffffff"/>
+          <rect x="72" y="72" width="16" height="16" fill="#ffffff"/>
+        </svg>
+      `;
+    }
+
+    let currentGuestData = null;
+
+    window.descargarPaseDefinitivo = function() {
+      const guestName = (currentGuestData && currentGuestData.nombre) || "Invitado";
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 400;
+      const ctx = canvas.getContext("2d");
+
+      // Fondo Disco Silver
+      const grad = ctx.createLinearGradient(0, 0, 640, 400);
+      grad.addColorStop(0, "#0f0f14");
+      grad.addColorStop(0.5, "#1f1d2b");
+      grad.addColorStop(1, "#0d0b12");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 640, 400);
+
+      // Borde plateado elegante
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(18, 18, 604, 364);
+
+      // Título
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = "bold 13px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("PASE DE ACCESO DEFINITIVO VIP — 15 AÑOS KEYBERLIS", 320, 52);
+
+      // Nombre Invitado
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 26px serif";
+      ctx.fillText(guestName.toUpperCase(), 320, 105);
+
+      // Detalles
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = "16px sans-serif";
+      ctx.fillText("📅 Sábado 07 de Noviembre | 21:00 a 06:00 hs", 320, 155);
+      ctx.fillText("📍 Salón: French 10551", 320, 190);
+
+      ctx.fillStyle = "#4ade80";
+      ctx.font = "bold 15px sans-serif";
+      ctx.fillText("✓ ASISTENCIA RECONFIRMADA OFICIALMENTE", 320, 235);
+
+      // Pie
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "italic 13px sans-serif";
+      ctx.fillText("Presentá este pase digital al ingresar al evento", 320, 340);
+
+      const link = document.createElement("a");
+      link.download = `Pase-Definitivo-${guestName.replace(/\\s+/g, '_')}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    };
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get("token") || urlParams.get("t");
+
+      const cardLoading = document.getElementById("card-loading");
+      const cardError = document.getElementById("card-error");
+      const cardSuccess = document.getElementById("card-success");
+      const errorMsg = document.getElementById("error-message");
+      const guestNameDisp = document.getElementById("guest-name-display");
+      const qrContainer = document.getElementById("qr-container");
+
+      if (!token || token.trim() === "") {
+        cardLoading.style.display = "none";
+        cardError.style.display = "block";
+        errorMsg.innerText = "No se ha proporcionado un token de reconfirmación en el enlace.";
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/reconfirmar/${encodeURIComponent(token.trim())}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success && data.data) {
+          currentGuestData = data.data;
+          guestNameDisp.innerText = data.data.nombre;
+          qrContainer.innerHTML = createQRCodeSVG(data.data.nombre);
+
+          cardLoading.style.display = "none";
+          cardSuccess.style.display = "block";
+
+          if (typeof confetti === "function") {
+            confetti({
+              particleCount: 80,
+              spread: 70,
+              origin: { y: 0.6 }
+            });
+          }
+        } else {
+          cardLoading.style.display = "none";
+          cardError.style.display = "block";
+          errorMsg.innerText = data.error || "El enlace no es válido o ha expirado.";
+        }
+      } catch (err) {
+        cardLoading.style.display = "none";
+        cardError.style.display = "block";
+        errorMsg.innerText = "Error de conexión con el servidor. Por favor intenta nuevamente.";
+      }
+    });
+  </script>
+</body>
+</html>

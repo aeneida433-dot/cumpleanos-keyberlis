@@ -283,10 +283,14 @@
       </div>
 
       <!-- Resumen de Confirmados -->
-      <div class="stats-grid">
+      <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
         <div class="stat-box">
           <div class="stat-val" id="stat-total-attending">0</div>
           <div class="stat-title">Confirmados</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="stat-total-reconfirmed" style="color: #4ade80;">0</div>
+          <div class="stat-title">Reconfirmados</div>
         </div>
         <div class="stat-box">
           <div class="stat-val" id="stat-total-reminded">0</div>
@@ -311,7 +315,8 @@
             <tr>
               <th>Invitado</th>
               <th>Teléfono</th>
-              <th>Recordatorio</th>
+              <th>Estado</th>
+              <th style="text-align: center; width: 45px;">Acción</th>
             </tr>
           </thead>
           <tbody id="guest-list-body">
@@ -367,6 +372,6 @@
     }
   </script>
   <!-- Script principal con cache busting -->
-  <script src="js/app.js?v=2.0.5"></script>
+  <script src="js/app.js?v=2.1.0"></script>
 </body>
 </html>

@@ -113,6 +113,14 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_invitados_telefono ON invitados(telefono);
     CREATE INDEX IF NOT EXISTS idx_invitados_recordatorio ON invitados(recordatorio_enviado);
 
+    -- Columnas e índices para el flujo de Doble Check de Asistencia
+    ALTER TABLE invitados ADD COLUMN IF NOT EXISTS token_reconfirmacion UUID DEFAULT gen_random_uuid();
+    ALTER TABLE invitados ADD COLUMN IF NOT EXISTS reconfirmado BOOLEAN DEFAULT FALSE;
+    ALTER TABLE invitados ADD COLUMN IF NOT EXISTS fecha_reconfirmacion TIMESTAMP;
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_invitados_token ON invitados(token_reconfirmacion);
+    CREATE INDEX IF NOT EXISTS idx_invitados_reconfirmado ON invitados(reconfirmado);
+
     -- Tabla para persistencia de sesión de WhatsApp (RemoteAuth en Neon)
     CREATE TABLE IF NOT EXISTS whatsapp_session (
       id SERIAL PRIMARY KEY,

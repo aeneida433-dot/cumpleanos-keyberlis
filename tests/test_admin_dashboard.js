@@ -208,6 +208,51 @@ async function runSecuritySuite() {
         const hasSocketDisconnect = appJsContent.includes('appSocket.disconnect()') && appJsContent.includes('appSocket = null');
         assert(hasSocketDisconnect, 'js/app.js desconecta y libera appSocket inmediatamente al cerrar el modal');
 
+        // 21. Aserción de Creación de Token UUID de Reconfirmación en RSVP
+        const testGuestPhone = '1199998888';
+        const rsvpRes = await request('POST', '/api/rsvp', {
+          nombre: 'Doble Check Test',
+          telefono: testGuestPhone,
+          attending: true
+        });
+        const createdToken = rsvpRes.body.data && rsvpRes.body.data.token_reconfirmacion;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(createdToken);
+        assert(
+          (rsvpRes.status === 200 || rsvpRes.status === 201) && isUuid,
+          'POST /api/rsvp genera y devuelve token_reconfirmacion en formato UUID v4'
+        );
+
+        // 22. Aserción de Reconfirmación de Asistencia con Token Válido
+        const reconfirmRes = await request('POST', `/api/reconfirmar/${createdToken}`);
+        assert(
+          reconfirmRes.status === 200 && reconfirmRes.body.success === true && reconfirmRes.body.data.reconfirmado === true,
+          'POST /api/reconfirmar/:token actualiza Neon y marca al invitado como reconfirmado = true'
+        );
+
+        // 23. Aserción de Rechazo de Token Inexistente o Inválido
+        const badTokenRes = await request('POST', '/api/reconfirmar/00000000-0000-0000-0000-000000000000');
+        assert(
+          badTokenRes.status === 404 && badTokenRes.body.success === false,
+          'POST /api/reconfirmar/:token rechaza token inexistente con 404 Not Found'
+        );
+
+        // 24. Aserción de Protección en DELETE /api/invitados/:id sin autorización
+        const guestIdToDelete = rsvpRes.body.data.id;
+        const unauthDel = await request('DELETE', `/api/invitados/${guestIdToDelete}`);
+        assert(
+          unauthDel.status === 401,
+          'DELETE /api/invitados/:id sin autenticación responde 401 Unauthorized'
+        );
+
+        // 25. Aserción de Borrado Físico Autorizado en DELETE /api/invitados/:id
+        const authDel = await request('DELETE', `/api/invitados/${guestIdToDelete}`, null, {
+          'Authorization': `Bearer ${adminJwt}`
+        });
+        assert(
+          authDel.status === 200 && authDel.body.success === true,
+          'DELETE /api/invitados/:id con sesión JWT autorizada elimina físicamente el registro de Neon'
+        );
+
         server.close(() => {
           resolveAll({ passed, failed });
         });

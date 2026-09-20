@@ -635,6 +635,17 @@ function initAdminSocket() {
       badge.style.borderColor = '#3b82f6';
     }
   });
+
+  appSocket.on('invitado-reconfirmado', (data) => {
+    if (currentAdminKey !== "key27102011") return;
+    showToast(`🎉 ¡${data.nombre} acaba de reconfirmar asistencia!`);
+    fetchNeonGuests();
+  });
+
+  appSocket.on('invitado-eliminado', () => {
+    if (currentAdminKey !== "key27102011") return;
+    fetchNeonGuests();
+  });
 }
 
 function initAdminModal() {
@@ -889,39 +900,91 @@ function fetchNeonGuests() {
       const tbody = document.getElementById("guest-list-body");
 
       let remindedCount = 0;
+      let reconfirmedCount = 0;
       neonGuestsList.forEach(g => {
         if (g.recordatorio_enviado) remindedCount++;
+        if (g.reconfirmado) reconfirmedCount++;
       });
       let pendingCount = neonGuestsList.length - remindedCount;
 
       if (totalAttendingEl) totalAttendingEl.innerText = neonGuestsList.length;
+      const totalReconfirmedEl = document.getElementById("stat-total-reconfirmed");
+      if (totalReconfirmedEl) totalReconfirmedEl.innerText = reconfirmedCount;
       if (totalRemindedEl) totalRemindedEl.innerText = remindedCount;
       if (totalPendingEl) totalPendingEl.innerText = pendingCount;
 
       if (tbody) {
         tbody.innerHTML = "";
         if (neonGuestsList.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 16px;">No hay confirmaciones registradas en Neon</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #94a3b8; padding: 16px;">No hay confirmaciones registradas en Neon</td></tr>';
           return;
         }
 
         neonGuestsList.forEach(guest => {
           const tr = document.createElement("tr");
-          const statusBadge = guest.recordatorio_enviado 
-            ? '<span style="color: #4ade80; font-weight: 600;">Enviado ✅</span>' 
-            : '<span style="color: #facc15; font-weight: 600;">Pendiente ⏳</span>';
+          let statusBadge = '<span style="color: #94a3b8; font-weight: 600;">⚪ Registrado</span>';
+          if (guest.reconfirmado) {
+            statusBadge = '<span style="color: #4ade80; font-weight: 700;">Reconfirmado ✅</span>';
+          } else if (guest.recordatorio_enviado) {
+            statusBadge = '<span style="color: #facc15; font-weight: 600;">Notificado ⏳</span>';
+          }
 
           tr.innerHTML = `
             <td><strong>${escapeHTML(guest.nombre)}</strong></td>
             <td><code>${escapeHTML(guest.telefono)}</code></td>
             <td>${statusBadge}</td>
+            <td style="text-align: center;">
+              <button type="button" class="btn-delete-guest" data-id="${guest.id}" data-name="${escapeHTML(guest.nombre)}" title="Eliminar invitado de Neon" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 4px 8px; cursor: pointer; transition: all 0.2s;">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </td>
           `;
           tbody.appendChild(tr);
+        });
+
+        // Event listener delegado para los botones de eliminación
+        tbody.querySelectorAll('.btn-delete-guest').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = btn.getAttribute('data-id');
+            const name = btn.getAttribute('data-name');
+            eliminarInvitadoNeon(id, name);
+          });
         });
       }
     })
     .catch(err => {
       console.warn('ℹ️ Consulta de invitados protegida:', err.message);
+    });
+}
+
+function eliminarInvitadoNeon(id, name) {
+  if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente a "${name}" de la base de datos de Neon? Esta acción es irreversible.`)) {
+    return;
+  }
+
+  const headers = getAdminHeaders();
+  fetch(`${API_BASE}/api/invitados/${id}`, {
+    method: 'DELETE',
+    headers: headers
+  })
+    .then(res => {
+      if (!res.ok) {
+        throw new Error('No autorizado o error al eliminar');
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (data.success) {
+        showToast(`🗑️ ${data.message || 'Invitado eliminado con éxito'}`);
+        fetchNeonGuests();
+      } else {
+        alert(data.error || 'Error al eliminar el invitado.');
+      }
+    })
+    .catch(err => {
+      console.error('Error al eliminar invitado:', err);
+      showToast('❌ Error de conexión al eliminar invitado.');
     });
 }
 

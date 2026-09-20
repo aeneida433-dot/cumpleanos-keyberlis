@@ -297,7 +297,7 @@ app.post('/api/rsvp', rsvpRateLimiter, async (req, res) => {
       'VALUES ($1, $2, false)',
       'ON CONFLICT (nombre, telefono) DO UPDATE',
       'SET fecha_registro = CURRENT_TIMESTAMP',
-      'RETURNING id, nombre, telefono, recordatorio_enviado, fecha_registro;'
+      'RETURNING id, nombre, telefono, recordatorio_enviado, reconfirmado, fecha_reconfirmacion, token_reconfirmacion, fecha_registro;'
     ].join('\n');
 
     const dbResult = await query(sql, [cleanName, normalizedPhone]);
@@ -316,6 +316,113 @@ app.post('/api/rsvp', rsvpRateLimiter, async (req, res) => {
       success: false,
       error: 'Error interno al registrar la confirmación. Intente nuevamente.'
     });
+  }
+});
+
+// ========================================================
+// 2.1 PÁGINA Y ENDPOINTS DE RECONFIRMACIÓN (DOBLE CHECK)
+// ========================================================
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Vista web del Pase de Acceso Definitivo
+app.get('/reconfirmar', (req, res) => {
+  res.sendFile(path.join(__dirname, 'reconfirmar.html'));
+});
+
+// Validar y ejecutar el Doble Check de Asistencia
+app.post('/api/reconfirmar/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    if (!token || !UUID_REGEX.test(token)) {
+      return res.status(400).json({
+        success: false,
+        error: 'El formato del enlace de reconfirmación no es válido.'
+      });
+    }
+
+    const checkSql = `
+      SELECT id, nombre, telefono, recordatorio_enviado, reconfirmado, fecha_reconfirmacion, fecha_registro
+      FROM invitados
+      WHERE token_reconfirmacion = $1
+    `;
+    const checkResult = await query(checkSql, [token]);
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invitación no encontrada o enlace no válido.'
+      });
+    }
+
+    const guest = checkResult.rows[0];
+
+    // Si aún no estaba reconfirmado, marcar en Neon y registrar timestamp
+    if (!guest.reconfirmado) {
+      const updateSql = `
+        UPDATE invitados
+        SET reconfirmado = TRUE, fecha_reconfirmacion = CURRENT_TIMESTAMP
+        WHERE token_reconfirmacion = $1
+        RETURNING id, nombre, telefono, recordatorio_enviado, reconfirmado, fecha_reconfirmacion, fecha_registro
+      `;
+      const updateResult = await query(updateSql, [token]);
+      const updatedGuest = updateResult.rows[0];
+
+      console.log(`🎉 [Doble Check] Invitado reconfirmado con éxito: "${updatedGuest.nombre}" (${updatedGuest.telefono})`);
+
+      if (io) {
+        io.emit('invitado-reconfirmado', {
+          id: updatedGuest.id,
+          nombre: updatedGuest.nombre,
+          telefono: updatedGuest.telefono,
+          fecha: updatedGuest.fecha_reconfirmacion
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        reconfirmedNow: true,
+        message: '¡Asistencia reconfirmada con éxito! Tu Pase Definitivo está listo.',
+        data: updatedGuest
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      reconfirmedNow: false,
+      message: 'Tu asistencia ya se encontraba formalmente reconfirmada.',
+      data: guest
+    });
+
+  } catch (error) {
+    console.error('[Reconfirmar Error]:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Error interno al procesar la reconfirmación.'
+    });
+  }
+});
+
+// Consulta de estado de reconfirmación (lectura)
+app.get('/api/reconfirmar/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token || !UUID_REGEX.test(token)) {
+      return res.status(400).json({ success: false, error: 'Token inválido' });
+    }
+
+    const checkResult = await query(
+      'SELECT id, nombre, telefono, recordatorio_enviado, reconfirmado, fecha_reconfirmacion FROM invitados WHERE token_reconfirmacion = $1',
+      [token]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Invitado no encontrado' });
+    }
+
+    return res.status(200).json({ success: true, data: checkResult.rows[0] });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -382,10 +489,9 @@ app.post('/api/admin/forzar-recordatorio', (req, res) => {
 // 4. ENDPOINT ADMINISTRATIVO: GET /api/invitados (Mejora 5: Autenticación JWT)
 // ========================================================
 app.get('/api/invitados', authenticateAdmin, async (req, res) => {
-
   try {
     const dbResult = await query(`
-      SELECT id, nombre, telefono, recordatorio_enviado, fecha_registro 
+      SELECT id, nombre, telefono, recordatorio_enviado, reconfirmado, fecha_reconfirmacion, fecha_registro, token_reconfirmacion 
       FROM invitados 
       ORDER BY id DESC
     `);
@@ -396,6 +502,50 @@ app.get('/api/invitados', authenticateAdmin, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ========================================================
+// 4.1 ENDPOINT ADMINISTRATIVO: DELETE /api/invitados/:id
+// ========================================================
+app.delete('/api/invitados/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const guestId = parseInt(req.params.id, 10);
+    if (!guestId || isNaN(guestId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID de invitado inválido.'
+      });
+    }
+
+    const deleteSql = 'DELETE FROM invitados WHERE id = $1 RETURNING id, nombre, telefono;';
+    const deleteResult = await query(deleteSql, [guestId]);
+
+    if (deleteResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invitado no encontrado en la base de datos.'
+      });
+    }
+
+    const deletedGuest = deleteResult.rows[0];
+    console.log(`🗑️ [Admin] Invitado eliminado permanentemente: ID ${deletedGuest.id} - "${deletedGuest.nombre}"`);
+
+    if (io) {
+      io.emit('invitado-eliminado', { id: deletedGuest.id });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Invitado "${deletedGuest.nombre}" eliminado exitosamente.`,
+      id: deletedGuest.id
+    });
+  } catch (error) {
+    console.error('[Delete Guest Error]:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Error interno al eliminar el invitado.'
+    });
   }
 });
 

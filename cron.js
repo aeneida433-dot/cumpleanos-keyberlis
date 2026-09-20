@@ -33,13 +33,18 @@ function formatNames(names) {
 
 /**
  * Construye el mensaje cálido de recordatorio para un invitado individual o un grupo familiar
+ * Incluye enlace personalizado de reconfirmación (Doble Check) si se suministra token UUID
  */
-function buildReminderMessage(names, alias = ALIAS) {
+function buildReminderMessage(names, alias = ALIAS, token = null) {
   const nombresFormatted = formatNames(names);
-  if (names && names.length > 1) {
-    return `¡Hola ${nombresFormatted}! Les recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirmen su asistencia si aún no lo han hecho. Si desean realizar un presente, pueden hacerlo en efectivo a nuestro alias: ${alias}`;
+  const baseGreeting = (names && names.length > 1)
+    ? `¡Hola ${nombresFormatted}! Les recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirmen su asistencia si aún no lo han hecho. Si desean realizar un presente, pueden hacerlo en efectivo a nuestro alias: ${alias}`
+    : `¡Hola ${nombresFormatted}! Te recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirma tu asistencia si aún no lo has hecho. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: ${alias}`;
+
+  if (token) {
+    return `${baseGreeting}\n\n✨ Reconfirmá tu lugar y obtené tu Pase Definitivo VIP con QR aquí:\n👉 https://cumpleanos-keyberlis.onrender.com/reconfirmar?token=${token}`;
   }
-  return `¡Hola ${nombresFormatted}! Te recordamos que mañana es la gran fiesta de 15 años de Keyberlis. Por favor, confirma tu asistencia si aún no lo has hecho. Si deseas realizar un presente, puedes hacerlo en efectivo a nuestro alias: ${alias}`;
+  return baseGreeting;
 }
 
 /**
@@ -64,7 +69,7 @@ async function ejecutarRecordatorios() {
 
   try {
     const dbResult = await query(
-      'SELECT id, nombre, telefono FROM invitados WHERE recordatorio_enviado = false ORDER BY id ASC'
+      'SELECT id, nombre, telefono, token_reconfirmacion FROM invitados WHERE recordatorio_enviado = false ORDER BY id ASC'
     );
     const invitados = dbResult.rows;
 
@@ -79,12 +84,16 @@ async function ejecutarRecordatorios() {
       if (!phoneGroups.has(inv.telefono)) {
         phoneGroups.set(inv.telefono, {
           ids: [],
-          names: []
+          names: [],
+          tokens: []
         });
       }
       const group = phoneGroups.get(inv.telefono);
       group.ids.push(inv.id);
       group.names.push(inv.nombre);
+      if (inv.token_reconfirmacion) {
+        group.tokens.push(inv.token_reconfirmacion);
+      }
     }
 
     const groups = Array.from(phoneGroups.entries());
@@ -95,7 +104,8 @@ async function ejecutarRecordatorios() {
 
     for (let i = 0; i < groups.length; i++) {
       const [telefono, data] = groups[i];
-      const mensaje = buildReminderMessage(data.names, ALIAS);
+      const token = (data.tokens && data.tokens.length > 0) ? data.tokens[0] : null;
+      const mensaje = buildReminderMessage(data.names, ALIAS, token);
 
       console.log(`\n📨 [${i + 1}/${groups.length}] Enviando recordatorio consolidado a ${telefono} (${data.names.join(', ')})...`);
 
