@@ -10,7 +10,7 @@ const { formatNames, buildReminderMessage } = require(path.join(projectRoot, 'cr
 const { pool, query } = require(path.join(projectRoot, 'db'));
 
 async function runTestSuite() {
-  console.log('\n--- 1. Pruebas de Integración y Regla de Oro Telefónica (23 Pruebas) ---');
+  console.log('\n--- 1. Pruebas de Integración y Regla de Oro Telefónica ---');
 
   let passed = 0;
   let failed = 0;

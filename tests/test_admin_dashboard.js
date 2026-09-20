@@ -47,7 +47,7 @@ function request(method, reqPath, body = null, headers = {}) {
 }
 
 async function runSecuritySuite() {
-  console.log('\n--- 2. Pruebas de Seguridad y Control de Acceso (6 Pruebas) ---');
+  console.log('\n--- 2. Pruebas de Seguridad, Control de Acceso y Rendimiento ---');
 
   return new Promise((resolveAll) => {
     const server = app.listen(PORT, async () => {
