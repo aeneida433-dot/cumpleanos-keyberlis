@@ -16,5 +16,10 @@ services:
         value: key.2710
       - key: ADMIN_KEY
         generateValue: true
+      - key: ADMIN_TOKEN
+        value: cumpleanos2710
+      - key: JWT_SECRET
+        generateValue: true
       - key: DATABASE_URL
         sync: false
+

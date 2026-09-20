@@ -113,6 +113,22 @@ async function runTestSuite() {
     assert(allMarked, 'Todos los integrantes de la familia marcados con recordatorio_enviado = true');
 
     await query('DELETE FROM invitados WHERE telefono = $1', [testPhone]);
+
+    // 4. Prueba de Auditoría en logs_envio (Mejora 16)
+    await query('DELETE FROM logs_envio WHERE telefono = $1', [testPhone]);
+    await query(
+      'INSERT INTO logs_envio (telefono, nombres_agrupados, mensaje_enviado) VALUES ($1, $2, $3)',
+      [testPhone, 'Juan Test, María Test y Sofía Test', 'Mensaje de prueba de auditoría']
+    );
+    const auditCheck = await query('SELECT id, telefono, nombres_agrupados FROM logs_envio WHERE telefono = $1', [testPhone]);
+    assert(auditCheck.rowCount === 1, 'Registro de auditoría insertado exitosamente en la tabla logs_envio');
+    await query('DELETE FROM logs_envio WHERE telefono = $1', [testPhone]);
+
+    // 5. Prueba de Limpieza de Sesiones Huérfanas (Mejora 19)
+    const { limpiarSesionesHuerfanas } = require(path.join(projectRoot, 'cron'));
+    const cleanCount = await limpiarSesionesHuerfanas();
+    assert(typeof cleanCount === 'number', 'Función de limpieza de sesiones huérfanas en Neon se ejecuta correctamente');
+
   } catch (err) {
     console.error('Error durante prueba de base de datos:', err);
     failed++;

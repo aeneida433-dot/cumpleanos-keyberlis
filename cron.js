@@ -109,6 +109,18 @@ async function ejecutarRecordatorios() {
           [data.ids]
         );
         console.log(`✅ [Cron] Entregado con éxito y registrado en Neon para IDs: [${data.ids.join(', ')}]`);
+
+        // Mejora 16: Tabla de Auditoría de Envíos en Neon
+        try {
+          const nombresAgrupados = data.names.join(', ');
+          await query(
+            'INSERT INTO logs_envio (telefono, nombres_agrupados, mensaje_enviado, fecha_envio) VALUES ($1, $2, $3, NOW())',
+            [telefono, nombresAgrupados, mensaje]
+          );
+          console.log(`📋 [Auditoría] Registro de envío guardado en logs_envio para ${telefono}`);
+        } catch (auditErr) {
+          console.error(`⚠️ [Auditoría Warning] Error registrando en logs_envio: ${auditErr.message}`);
+        }
       } else {
         totalFallidos += data.ids.length;
         console.error(`❌ [Cron Error] Falló el envío a ${telefono}: ${resultado.error}`);
@@ -140,7 +152,28 @@ async function ejecutarRecordatorios() {
 }
 
 /**
+ * Mejora 19: Limpieza de Sesiones Huérfanas de Baileys en Neon PostgreSQL
+ * Elimina registros antiguos donde updated_at sea mayor a 7 días, protegiendo la sesión activa
+ */
+async function limpiarSesionesHuerfanas() {
+  try {
+    console.log('🧹 [Limpieza Neon] Ejecutando depuración de sesiones huérfanas en whatsapp_session...');
+    const res = await query(`
+      DELETE FROM whatsapp_session 
+      WHERE updated_at < NOW() - INTERVAL '7 days' 
+        AND session_id != 'baileys_session'
+    `);
+    console.log(`🧹 [Limpieza Neon] Sesiones depuradas: ${res.rowCount} registros eliminados.`);
+    return res.rowCount;
+  } catch (err) {
+    console.error('⚠️ [Limpieza Neon Warning] Error limpiando sesiones huérfanas:', err.message);
+    return 0;
+  }
+}
+
+/**
  * Inicializa el Cron Job programado exactamente para el 6 de Noviembre a las 12:00 PM
+ * y la limpieza periódica de sesiones huérfanas a medianoche
  */
 function initCron() {
   // Expresión cron: 0 12 6 11 * (Minuto 0, Hora 12, Día 6, Mes 11 - Noviembre)
@@ -155,11 +188,20 @@ function initCron() {
     scheduled: true,
     timezone: TIMEZONE
   });
+
+  // Limpieza periódica a medianoche (00:00 cada día)
+  cron.schedule('0 0 * * *', async () => {
+    await limpiarSesionesHuerfanas();
+  }, {
+    scheduled: true,
+    timezone: TIMEZONE
+  });
 }
 
 module.exports = {
   initCron,
   ejecutarRecordatorios,
+  limpiarSesionesHuerfanas,
   formatNames,
   buildReminderMessage
 };

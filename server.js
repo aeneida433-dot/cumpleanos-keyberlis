@@ -12,6 +12,8 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
+const jwt = require('jsonwebtoken');
 
 // Comparación segura en tiempo constante para mitigar timing attacks
 function safeCompare(a, b) {
@@ -25,10 +27,44 @@ function safeCompare(a, b) {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
+// Mejora 3: Hash criptográfico SHA-256 de la contraseña maestra del dashboard
+// La contraseña en texto plano NUNCA se almacena en el código fuente ni en memoria
+const ADMIN_DASHBOARD_KEY_HASH = process.env.ADMIN_DASHBOARD_KEY_HASH || 'fd1b62709e2d2b1dcd9ccdc31577cf30b2e5396674121041e5ba4ac523e081b7';
+
+function verifyAdminPassword(candidatePassword) {
+  if (!candidatePassword || typeof candidatePassword !== 'string') return false;
+  const candidateHash = crypto.createHash('sha256').update(candidatePassword.trim()).digest('hex');
+  const bufCandidate = Buffer.from(candidateHash);
+  const bufExpected = Buffer.from(ADMIN_DASHBOARD_KEY_HASH);
+  if (bufCandidate.length !== bufExpected.length) return false;
+  return crypto.timingSafeEqual(bufCandidate, bufExpected);
+}
+
+// Mejora 5: Secreto criptográfico para firma y verificación de JWT (15 min)
+const JWT_SECRET = process.env.JWT_SECRET || 'keyberlis_secret_jwt_27102011_f92a';
+
+// Mejora 4: Sanitización estricta anti-XSS de inputs de usuario
+function sanitizeInput(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .replace(/[<>&"']/g, (c) => ({
+      '<': '&lt;',
+      '>': '&gt;',
+      '&': '&amp;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[c]))
+    .trim();
+}
+
+const isTestMode = process.env.NODE_ENV === 'test';
 if (fs.existsSync('/etc/secrets/.env')) {
   require('dotenv').config({ path: '/etc/secrets/.env', override: true });
 } else {
-  require('dotenv').config({ override: true });
+  require('dotenv').config({ override: !isTestMode });
+}
+if (isTestMode) {
+  process.env.NODE_ENV = 'test';
 }
 
 if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('sslmode=require')) {
@@ -93,42 +129,21 @@ app.use(cors());
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// Rate Limiter en memoria (Sliding Window) para POST /api/rsvp: máx 5 registros por IP cada 15 minutos
-const rsvpRateLimitMap = new Map();
-const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
-const MAX_RSVP_PER_WINDOW = 5;
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, timestamps] of rsvpRateLimitMap.entries()) {
-    const valid = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
-    if (valid.length === 0) {
-      rsvpRateLimitMap.delete(ip);
-    } else {
-      rsvpRateLimitMap.set(ip, valid);
-    }
-  }
-}, 10 * 60 * 1000);
-
-function checkRsvpRateLimit(req, res, next) {
-  if (process.env.NODE_ENV === 'test') return next();
-
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
-  const now = Date.now();
-  const timestamps = (rsvpRateLimitMap.get(ip) || []).filter(t => now - t < RATE_LIMIT_WINDOW_MS);
-
-  if (timestamps.length >= MAX_RSVP_PER_WINDOW) {
-    console.warn(`⚠️ [Rate Limit] Bloqueada solicitud repetida a /api/rsvp desde IP: ${ip}`);
+// Mejora 1: Rate Limiting estricto con express-rate-limit sobre POST /api/rsvp (máx 3 por minuto por IP)
+const rsvpRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 3, // Máximo 3 confirmaciones por minuto por IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV === 'test' && req.headers['x-test-rate-limit'] !== 'true',
+  handler: (req, res) => {
+    console.warn(`⚠️ [Rate Limit] Bloqueada solicitud repetida a /api/rsvp desde IP: ${req.ip || 'desconocida'}`);
     return res.status(429).json({
       success: false,
-      error: 'Has enviado demasiadas confirmaciones en poco tiempo. Por favor espera unos minutos.'
+      error: 'Too Many Requests: Has excedido el límite de 3 confirmaciones por minuto. Por favor espera un momento.'
     });
   }
-
-  timestamps.push(now);
-  rsvpRateLimitMap.set(ip, timestamps);
-  next();
-}
+});
 
 // Prevenir caché obsoleto en navegadores para código JS y HTML
 app.use((req, res, next) => {
@@ -187,16 +202,24 @@ app.get('/admin/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
-// Endpoint de verificación de clave para el dashboard (clave exacta: key27102011)
+// Endpoint de verificación de clave para el dashboard (Mejora 3: Hasheo SHA-256 / Mejora 5: JWT)
 app.post('/api/admin/verify-key', (req, res) => {
   const { key } = req.body;
-  const expectedKey = process.env.ADMIN_DASHBOARD_KEY || 'key27102011';
 
-  if (safeCompare(key, expectedKey) || safeCompare(key, 'key27102011')) {
-    return res.status(200).json({ success: true, message: 'Acceso concedido al dashboard.' });
+  if (verifyAdminPassword(key)) {
+    const token = jwt.sign(
+      { role: 'admin', authorizedAt: Date.now() },
+      JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+    return res.status(200).json({
+      success: true,
+      message: 'Acceso concedido al dashboard.',
+      token: token
+    });
   }
 
-  console.warn(`🔒 [Seguridad] Intento no autorizado al dashboard con clave: "${key || 'vacía'}"`);
+  console.warn(`🔒 [Seguridad] Intento no autorizado al dashboard con clave no válida`);
   return res.status(401).json({ success: false, error: 'Contraseña incorrecta. Acceso denegado.' });
 });
 
@@ -214,9 +237,9 @@ app.get('/ping', (req, res) => {
 });
 
 // ========================================================
-// 2. ENDPOINT DE REGISTRO: POST /api/rsvp
+// 2. ENDPOINT DE REGISTRO: POST /api/rsvp (Mejora 1: Rate Limiter / Mejora 4: Anti-XSS)
 // ========================================================
-app.post('/api/rsvp', checkRsvpRateLimit, async (req, res) => {
+app.post('/api/rsvp', rsvpRateLimiter, async (req, res) => {
   try {
     const { nombre, telefono, attending, b_website } = req.body;
 
@@ -248,7 +271,8 @@ app.post('/api/rsvp', checkRsvpRateLimit, async (req, res) => {
       });
     }
 
-    const cleanName = nombre.trim().slice(0, 100);
+    // Mejora 4: Sanitización estricta anti-XSS de inputs (nombre y apellido)
+    const cleanName = sanitizeInput(nombre).slice(0, 100);
 
     // Validación y normalización estricta del teléfono (Argentina +54 9, 13 dígitos)
     const phoneResult = normalizePhone(telefono);
@@ -289,31 +313,45 @@ app.post('/api/rsvp', checkRsvpRateLimit, async (req, res) => {
   }
 });
 
-// Función de autorización para panel administrativo general (timing-safe)
-function isAuthorized(req) {
-  const adminKey = req.headers['x-admin-key'] || req.query.key;
-  if (!adminKey || typeof adminKey !== 'string' || adminKey.trim() === '') {
-    return false;
+// Middleware de autenticación para panel administrativo (Mejora 5: Sesiones JWT / Hash SHA-256)
+function authenticateAdmin(req, res, next) {
+  // 1. Verificación preferente por JWT en cabecera Authorization
+  const authHeader = req.headers['authorization'];
+  if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      req.adminUser = decoded;
+      return next();
+    } catch (jwtErr) {
+      console.warn(`🔒 [JWT] Token inválido o expirado: ${jwtErr.message}`);
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized: Token de sesión JWT inválido o expirado'
+      });
+    }
   }
-  const cleanKey = adminKey.trim();
-  const expectedKey = process.env.ADMIN_KEY || 'clave_admin_keyberlis_2710';
-  const dashboardKey = process.env.ADMIN_DASHBOARD_KEY || 'key27102011';
-  return (
-    safeCompare(cleanKey, expectedKey) ||
-    safeCompare(cleanKey, dashboardKey) ||
-    safeCompare(cleanKey, 'key27102011') ||
-    safeCompare(cleanKey, 'keyberlis15') ||
-    safeCompare(cleanKey, 'cumpleanos2710')
-  );
+
+  // 2. Compatibilidad con clave administrativa directa hasheada
+  const legacyKey = req.headers['x-admin-key'] || req.query.key;
+  if (legacyKey && typeof legacyKey === 'string' && verifyAdminPassword(legacyKey)) {
+    return next();
+  }
+
+  return res.status(401).json({
+    success: false,
+    error: 'Unauthorized: Se requiere token JWT válido en cabecera Authorization: Bearer <token>'
+  });
 }
 
 // ========================================================
-// 3. ENDPOINT ADMINISTRATIVO SEGURO: POST /api/admin/forzar-recordatorio
+// 3. ENDPOINT ADMINISTRATIVO SEGURO: POST /api/admin/forzar-recordatorio (Mejora 7: process.env.ADMIN_TOKEN)
 // ========================================================
 app.post('/api/admin/forzar-recordatorio', (req, res) => {
-  const token = req.query.token;
+  const token = req.query.token || req.headers['x-admin-token'];
+  const expectedToken = process.env.ADMIN_TOKEN;
 
-  if (token !== 'cumpleanos2710') {
+  if (!token || !expectedToken || !safeCompare(token, expectedToken)) {
     console.warn(`🔒 [Seguridad] Intento no autorizado a /api/admin/forzar-recordatorio con token: "${token || 'ninguno'}"`);
     return res.status(401).json({
       success: false,
@@ -321,7 +359,7 @@ app.post('/api/admin/forzar-recordatorio', (req, res) => {
     });
   }
 
-  console.log('⚡ [Admin] Forzado manual de recordatorios autorizado con token cumpleanos2710.');
+  console.log('⚡ [Admin] Forzado manual de recordatorios autorizado con token administrativo seguro.');
 
   // Disparo asíncrono en segundo plano sin bloquear la respuesta HTTP
   ejecutarRecordatorios().catch((err) => {
@@ -335,13 +373,9 @@ app.post('/api/admin/forzar-recordatorio', (req, res) => {
 });
 
 // ========================================================
-// 4. ENDPOINT ADMINISTRATIVO: GET /api/invitados
+// 4. ENDPOINT ADMINISTRATIVO: GET /api/invitados (Mejora 5: Autenticación JWT)
 // ========================================================
-app.get('/api/invitados', async (req, res) => {
-  const adminKey = req.headers['x-admin-key'];
-  if (!adminKey || typeof adminKey !== 'string' || !isAuthorized(req)) {
-    return res.status(401).json({ success: false, error: 'No autorizado. Se requiere x-admin-key válida en cabeceras.' });
-  }
+app.get('/api/invitados', authenticateAdmin, async (req, res) => {
 
   try {
     const dbResult = await query(`
@@ -456,4 +490,7 @@ if (require.main === module) {
 
 app.server = server;
 app.io = io;
+app.verifyAdminPassword = verifyAdminPassword;
+app.sanitizeInput = sanitizeInput;
+app.JWT_SECRET = JWT_SECRET;
 module.exports = app;

@@ -590,6 +590,10 @@
     const loginBtn = document.getElementById('login-btn');
 
     // Comprobar si ya existe sesión autorizada
+    let authKey = sessionStorage.getItem('keyberlis_admin_key') || '';
+    let adminJwt = '';
+    let guestsData = [];
+
     if (authKey) {
       verifyAndLoad(authKey);
     }
@@ -610,6 +614,7 @@
         const data = await res.json();
         if (res.ok && data.success) {
           authKey = enteredKey;
+          adminJwt = data.token || '';
           sessionStorage.setItem('keyberlis_admin_key', authKey);
           unlockDashboard();
           await loadDashboardData();
@@ -631,12 +636,15 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key: key })
         });
-        if (res.ok) {
+        const data = await res.json();
+        if (res.ok && data.success) {
+          adminJwt = data.token || '';
           unlockDashboard();
           await loadDashboardData();
         } else {
           sessionStorage.removeItem('keyberlis_admin_key');
           authKey = '';
+          adminJwt = '';
         }
       } catch (e) {
         console.error('Fallo de verificación inicial:', e);
@@ -650,6 +658,7 @@
     document.getElementById('logout-btn').addEventListener('click', () => {
       sessionStorage.removeItem('keyberlis_admin_key');
       authKey = '';
+      adminJwt = '';
       lockScreen.style.display = 'flex';
       passwordInput.value = '';
     });
@@ -663,13 +672,17 @@
       }, 500);
     });
 
-    // Cargar Invitados y Métricas desde Neon
+    // Cargar Invitados y Métricas desde Neon (Mejora 5: Autenticación JWT Bearer)
     async function loadDashboardData() {
       if (!authKey) return;
 
       try {
+        const reqHeaders = { 'x-admin-key': authKey };
+        if (adminJwt) {
+          reqHeaders['Authorization'] = `Bearer ${adminJwt}`;
+        }
         const res = await fetch('/api/invitados', {
-          headers: { 'x-admin-key': authKey }
+          headers: reqHeaders
         });
 
         if (!res.ok) {

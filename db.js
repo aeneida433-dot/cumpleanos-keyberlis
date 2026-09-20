@@ -8,10 +8,14 @@ const fs = require('fs');
 
 process.env.PGSSLMODE = 'verify-full';
 
+const isTestMode = process.env.NODE_ENV === 'test';
 if (fs.existsSync('/etc/secrets/.env')) {
   require('dotenv').config({ path: '/etc/secrets/.env', override: true });
 } else {
-  require('dotenv').config({ override: true });
+  require('dotenv').config({ override: !isTestMode });
+}
+if (isTestMode) {
+  process.env.NODE_ENV = 'test';
 }
 
 if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('sslmode=require')) {

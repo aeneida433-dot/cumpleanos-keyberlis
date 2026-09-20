@@ -3,6 +3,7 @@
  * Proyecto: cumpleanos-keyberlis
  */
 
+process.env.NODE_ENV = 'test';
 const { runTestSuite } = require('./test_suite');
 const { runSecuritySuite } = require('./test_admin_dashboard');
 const { pool } = require('../db');

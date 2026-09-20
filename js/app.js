@@ -692,6 +692,21 @@ function initAdminModal() {
     validateAndToggleAdminModal(cleanPass, modal);
     showToast("🔓 Acceso Concedido al Panel del Anfitrión");
 
+    // Mejora 5: Obtener token JWT firmado con expiración de 15 minutos
+    fetch(`${API_BASE}/api/admin/verify-key`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: cleanPass })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success && data.token) {
+        currentAdminJwt = data.token;
+        fetchNeonGuests();
+      }
+    })
+    .catch(err => console.warn('Error al verificar JWT:', err.message));
+
     initAdminSocket();
     populateAdminForm();
     fetchWhatsAppStatus();
@@ -704,6 +719,7 @@ function initAdminModal() {
   function closeModal() {
     modal.style.setProperty('display', 'none', 'important');
     currentAdminKey = null;
+    currentAdminJwt = null;
     if (adminPollInterval) {
       clearInterval(adminPollInterval);
       adminPollInterval = null;
@@ -819,18 +835,24 @@ function fetchWhatsAppStatus() {
     .catch(err => console.warn('Estado WhatsApp:', err.message));
 }
 
-// 3. ENDPOINT DE DATOS SEGURO: Cabeceras con clave estricta
+let currentAdminJwt = null;
+
+// 3. ENDPOINT DE DATOS SEGURO: Cabeceras con sesión JWT (Mejora 5)
 function getAdminHeaders() {
-  return {
+  const headers = {
     'Content-Type': 'application/json',
     'x-admin-key': currentAdminKey || ''
   };
+  if (currentAdminJwt) {
+    headers['Authorization'] = `Bearer ${currentAdminJwt}`;
+  }
+  return headers;
 }
 
 function fetchNeonGuests() {
   const headers = getAdminHeaders();
-  if (!headers['x-admin-key'] || headers['x-admin-key'] !== 'key27102011') {
-    console.warn('⚠️ [Seguridad] Consulta a /api/invitados cancelada: requiere clave autorizada.');
+  if (!headers['Authorization'] && (!headers['x-admin-key'] || headers['x-admin-key'] !== 'key27102011')) {
+    console.warn('⚠️ [Seguridad] Consulta a /api/invitados cancelada: requiere clave o token autorizado.');
     return;
   }
 

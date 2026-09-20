@@ -3,6 +3,8 @@
  * Protección con clave key27102011 y token cumpleanos2710
  */
 
+process.env.NODE_ENV = 'test';
+process.env.ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'cumpleanos2710';
 const path = require('path');
 const projectRoot = path.resolve(__dirname, '..');
 const http = require('http');
@@ -75,19 +77,31 @@ async function runSecuritySuite() {
         const verifyFail = await request('POST', '/api/admin/verify-key', { key: 'clave_invalida' });
         assert(verifyFail.status === 401 && verifyFail.body.success === false, 'POST /api/admin/verify-key rechaza clave inválida con 401');
 
-        // 3. POST /api/admin/verify-key valida clave exacta key27102011
+        // 3. POST /api/admin/verify-key valida clave exacta key27102011 con hash SHA-256 y emite JWT (15 min)
         const verifyOk = await request('POST', '/api/admin/verify-key', { key: 'key27102011' });
-        assert(verifyOk.status === 200 && verifyOk.body.success === true, 'POST /api/admin/verify-key valida key27102011 con 200 OK');
+        assert(
+          verifyOk.status === 200 && verifyOk.body.success === true && typeof verifyOk.body.token === 'string',
+          'POST /api/admin/verify-key valida key27102011 mediante hash SHA-256 y emite token JWT'
+        );
+        const adminJwt = verifyOk.body.token;
 
-        // 4a. GET /api/invitados con cabecera x-admin-key: key27102011
+        // 4a. GET /api/invitados con cabecera Authorization: Bearer <token> autoriza acceso
+        const invJwtAuth = await request('GET', '/api/invitados', null, { 'Authorization': `Bearer ${adminJwt}` });
+        assert(invJwtAuth.status === 200 && Array.isArray(invJwtAuth.body.invitados), 'GET /api/invitados autoriza acceso con sesión JWT (Bearer token)');
+
+        // 4b. GET /api/invitados con token JWT inválido responde 401 Unauthorized
+        const invBadJwt = await request('GET', '/api/invitados', null, { 'Authorization': 'Bearer token_invalido_jwt' });
+        assert(invBadJwt.status === 401 && invBadJwt.body.success === false, 'GET /api/invitados con JWT inválido responde 401 Unauthorized');
+
+        // 4c. GET /api/invitados con cabecera x-admin-key: key27102011 (retrocompatibilidad)
         const invAuth = await request('GET', '/api/invitados', null, { 'x-admin-key': 'key27102011' });
-        assert(invAuth.status === 200 && Array.isArray(invAuth.body.invitados), 'GET /api/invitados autoriza acceso con clave key27102011');
+        assert(invAuth.status === 200 && Array.isArray(invAuth.body.invitados), 'GET /api/invitados autoriza acceso con clave key27102011 (retrocompatibilidad)');
 
-        // 4b. GET /api/invitados sin cabecera x-admin-key es rechazado con 401
+        // 4d. GET /api/invitados sin cabeceras es rechazado con 401
         const invNoAuth = await request('GET', '/api/invitados');
         assert(invNoAuth.status === 401 && invNoAuth.body.success === false, 'GET /api/invitados sin cabecera responde 401 Unauthorized');
 
-        // 4c. GET /api/invitados con clave inválida es rechazado con 401
+        // 4e. GET /api/invitados con clave inválida es rechazado con 401
         const invWrongAuth = await request('GET', '/api/invitados', null, { 'x-admin-key': 'clave_incorrecta' });
         assert(invWrongAuth.status === 401 && invWrongAuth.body.success === false, 'GET /api/invitados con clave incorrecta responde 401 Unauthorized');
 
@@ -95,9 +109,10 @@ async function runSecuritySuite() {
         const forceFail = await request('POST', '/api/admin/forzar-recordatorio?token=token_invalido');
         assert(forceFail.status === 401, 'POST /api/admin/forzar-recordatorio rechaza token incorrecto con 401');
 
-        // 6. POST /api/admin/forzar-recordatorio autoriza con token correcto cumpleanos2710 (200)
-        const forceOk = await request('POST', '/api/admin/forzar-recordatorio?token=cumpleanos2710');
-        assert(forceOk.status === 200 && forceOk.body.success === true, 'POST /api/admin/forzar-recordatorio autoriza token cumpleanos2710 con 200 OK');
+        // 6. POST /api/admin/forzar-recordatorio autoriza con token de entorno process.env.ADMIN_TOKEN (200)
+        const validAdminToken = process.env.ADMIN_TOKEN || 'cumpleanos2710';
+        const forceOk = await request('POST', `/api/admin/forzar-recordatorio?token=${validAdminToken}`);
+        assert(forceOk.status === 200 && forceOk.body.success === true, 'POST /api/admin/forzar-recordatorio autoriza token de variable de entorno con 200 OK');
 
         // 7. Verificación de Socket.io montado y exportado en tiempo real
         const { setSocketIO, refrescarQR } = require(path.join(projectRoot, 'whatsapp'));
@@ -150,6 +165,39 @@ async function runSecuritySuite() {
         // 15. Aserción de Trampa Honeypot en el formulario RSVP
         const hasHoneypot = indexHtmlContent.includes('id="b_website"');
         assert(hasHoneypot, 'Formulario RSVP incluye campo trampa Honeypot anti-bots (b_website)');
+
+        // 16. Aserción de Ocultamiento de Secretos: server.js no contiene contraseñas ni tokens en texto plano
+        const serverJsContent = fs.readFileSync(path.join(projectRoot, 'server.js'), 'utf8');
+        const hasPlaintextPassword = serverJsContent.includes("'key27102011'") || serverJsContent.includes('"key27102011"');
+        assert(!hasPlaintextPassword, 'server.js NUNCA contiene la contraseña en texto plano (hasheada en SHA-256)');
+
+        const hasPlaintextToken = serverJsContent.includes("'cumpleanos2710'") || serverJsContent.includes('"cumpleanos2710"');
+        assert(!hasPlaintextToken, 'server.js NUNCA contiene el token administrativo en texto plano (usa process.env.ADMIN_TOKEN)');
+
+        // 17. Aserción de Sanitización Anti-XSS en POST /api/rsvp
+        const xssRes = await request('POST', '/api/rsvp', {
+          nombre: '<script>alert("xss")</script> Pedro & "Familia"',
+          telefono: '1161034151',
+          attending: true
+        });
+        assert(
+          (xssRes.status === 200 || xssRes.status === 201) &&
+          !xssRes.body.data.nombre.includes('<script>') &&
+          xssRes.body.data.nombre.includes('&lt;script&gt;'),
+          'POST /api/rsvp sanitiza inputs HTML (<, >, &, ") codificando entidades anti-XSS'
+        );
+        const { query } = require(path.join(projectRoot, 'db'));
+        await query('DELETE FROM invitados WHERE telefono = $1', ['5491161034151']);
+
+        // 18. Aserción de Rate Limiting con express-rate-limit (HTTP 429 al 4to intento por IP)
+        const rHeaders = { 'x-test-rate-limit': 'true' };
+        const req1 = await request('POST', '/api/rsvp', { attending: false }, rHeaders);
+        const req2 = await request('POST', '/api/rsvp', { attending: false }, rHeaders);
+        const req3 = await request('POST', '/api/rsvp', { attending: false }, rHeaders);
+        const req4 = await request('POST', '/api/rsvp', { attending: false }, rHeaders);
+
+        assert(req1.status === 200 && req2.status === 200 && req3.status === 200, 'Rate Limiter permite hasta 3 solicitudes por minuto');
+        assert(req4.status === 429 && req4.body.success === false, 'Rate Limiter bloquea la 4ta solicitud consecutiva con HTTP 429 Too Many Requests');
 
         server.close(() => {
           resolveAll({ passed, failed });
