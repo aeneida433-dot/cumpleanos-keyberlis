@@ -724,6 +724,15 @@ function initAdminModal() {
       clearInterval(adminPollInterval);
       adminPollInterval = null;
     }
+    if (appSocket) {
+      try {
+        console.log("🔌 [Socket] Cerrando conexión de socket al salir del panel de administración");
+        appSocket.disconnect();
+      } catch (e) {
+        console.warn("Error al desconectar socket:", e);
+      }
+      appSocket = null;
+    }
   }
 
   if (closeBtn) closeBtn.addEventListener("click", closeModal);

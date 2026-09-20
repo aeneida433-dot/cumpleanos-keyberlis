@@ -14,6 +14,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
+const compression = require('compression');
 
 // Comparación segura en tiempo constante para mitigar timing attacks
 function safeCompare(a, b) {
@@ -125,6 +126,11 @@ process.on('uncaughtException', (err) => {
 });
 
 // Middlewares
+// 1. Compresión HTTP Gzip/Deflate para reducir en más de un 50% la transferencia de frontend
+app.use(compression({
+  threshold: 1024
+}));
+
 app.use(cors());
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));

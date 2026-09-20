@@ -199,6 +199,15 @@ async function runSecuritySuite() {
         assert(req1.status === 200 && req2.status === 200 && req3.status === 200, 'Rate Limiter permite hasta 3 solicitudes por minuto');
         assert(req4.status === 429 && req4.body.success === false, 'Rate Limiter bloquea la 4ta solicitud consecutiva con HTTP 429 Too Many Requests');
 
+        // 19. Aserción de Compresión HTTP Gzip en el Servidor
+        const hasCompression = serverJsContent.includes("require('compression')") && serverJsContent.includes("app.use(compression(");
+        assert(hasCompression, 'server.js tiene integrado el middleware compression para respuestas Gzip');
+
+        // 20. Aserción de Desconexión de Sockets bajo demanda en app.js
+        const appJsContent = fs.readFileSync(path.join(projectRoot, 'js', 'app.js'), 'utf8');
+        const hasSocketDisconnect = appJsContent.includes('appSocket.disconnect()') && appJsContent.includes('appSocket = null');
+        assert(hasSocketDisconnect, 'js/app.js desconecta y libera appSocket inmediatamente al cerrar el modal');
+
         server.close(() => {
           resolveAll({ passed, failed });
         });

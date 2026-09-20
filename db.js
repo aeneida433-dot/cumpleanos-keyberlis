@@ -50,9 +50,9 @@ if (connectionString.includes('sslmode=require')) {
 const pool = new Pool({
   connectionString: connectionString,
   ssl: { rejectUnauthorized: true },
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+  max: 3,
+  idleTimeoutMillis: 10000,
+  connectionTimeoutMillis: 5000,
 });
 
 // Listener para errores imprevistos en clientes inactivos del pool
@@ -84,7 +84,7 @@ async function query(text, params) {
  * Inicializa la tabla 'invitados' e índices en Neon automáticamente al arrancar
  */
 async function initDB() {
-  if (!process.env.DATABASE_URL && !NEON_CONNECTION_STRING) {
+  if (!process.env.DATABASE_URL) {
     console.warn('⚠️ [DB Warning] DATABASE_URL no está definida. La base de datos no se inicializará.');
     return;
   }
