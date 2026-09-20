@@ -211,6 +211,20 @@ async function runSecuritySuite() {
         const hasSocketDisconnect = appJsContent.includes('appSocket.disconnect()') && appJsContent.includes('appSocket = null');
         assert(hasSocketDisconnect, 'js/app.js desconecta y libera appSocket inmediatamente al cerrar el modal');
 
+        // 20.1 Aserción de Eliminación de Llamadas Externas a WhatsApp en RSVP
+        const rsvpFormStart = appJsContent.indexOf('function initRSVPForm()');
+        const rsvpFormEnd = appJsContent.indexOf('/* ========================================================\n   6. PASE VIP');
+        const rsvpFormCode = (rsvpFormStart !== -1 && rsvpFormEnd !== -1)
+          ? appJsContent.slice(rsvpFormStart, rsvpFormEnd)
+          : '';
+        const noSendWhatsAppInRSVP = !appJsContent.includes('sendWhatsAppConfirmation') &&
+          !rsvpFormCode.includes('window.open') &&
+          !rsvpFormCode.includes('whatsapp.com');
+        assert(
+          noSendWhatsAppInRSVP,
+          'js/app.js NO contiene llamadas externas a WhatsApp ni abre la aplicación al confirmar RSVP'
+        );
+
         // 21. Aserción de Creación de Token UUID de Reconfirmación en RSVP
         const testGuestPhone = '1199998888';
         const rsvpRes = await request('POST', '/api/rsvp', {

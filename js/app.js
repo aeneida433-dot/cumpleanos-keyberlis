@@ -304,98 +304,72 @@ function initRSVPForm() {
       date: new Date().toLocaleDateString("es-ES")
     };
 
-    // Si confirma que SÍ asistirá, se registra en Neon PostgreSQL.
-    // Si marca que NO asistirá, NO se registra nada en la base de datos (lista 100% limpia).
-    if (attending) {
-      const honeypotVal = document.getElementById("b_website") ? document.getElementById("b_website").value : "";
-      fetch(`${API_BASE}/api/rsvp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombre: guestData.name,
-          telefono: phone,
-          attending: true,
-          b_website: honeypotVal
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          console.log('✅ [Neon DB] Registrado exitosamente:', data.data);
-        } else {
-          console.warn('⚠️ [Neon DB]:', data.error);
-        }
-      })
-      .catch(err => {
-        console.warn('ℹ️ Servidor en segundo plano o modo local:', err.message);
-      });
-
-      guestList.push(guestData);
-      localStorage.setItem("cumpleanos_guests", JSON.stringify(guestList));
-      renderGuestList();
-
-      showVIPTicket(guestData);
-      triggerConfetti();
-    } else {
-      const honeypotVal = document.getElementById("b_website") ? document.getElementById("b_website").value : "";
-      fetch(`${API_BASE}/api/rsvp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombre: guestData.name,
-          telefono: phone,
-          attending: false,
-          b_website: honeypotVal
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          console.log('ℹ️ [Neon DB] No asistencia registrada silenciosamente.');
-        }
-      })
-      .catch(err => {
-        console.warn('ℹ️ Servidor en segundo plano o modo local:', err.message);
-      });
-
-      showToast("💌 ¡Muchas gracias por avisarnos! Lamentamos que no puedas venir.");
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Confirmando...</span>';
     }
 
-    sendWhatsAppConfirmation(guestData);
+    const honeypotVal = document.getElementById("b_website") ? document.getElementById("b_website").value : "";
+
+    fetch(`${API_BASE}/api/rsvp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: guestData.name,
+        telefono: phone,
+        attending: attending,
+        b_website: honeypotVal
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> <span>Confirmar Asistencia</span>';
+      }
+
+      if (data.success) {
+        if (attending) {
+          console.log('✅ [Neon DB] Registrado exitosamente:', data.data);
+          guestList.push(guestData);
+          localStorage.setItem("cumpleanos_guests", JSON.stringify(guestList));
+          renderGuestList();
+
+          // Ocultar formulario de confirmación y renderizar Pase VIP
+          form.style.display = "none";
+          showVIPTicket(guestData);
+          triggerConfetti();
+          showToast("🎉 ¡Confirmación registrada con éxito! Tu Pase VIP está listo.");
+        } else {
+          console.log('ℹ️ [Neon DB] No asistencia registrada silenciosamente.');
+          form.style.display = "none";
+          showToast("💌 ¡Muchas gracias por avisarnos! Lamentamos que no puedas venir.");
+        }
+      } else {
+        showToast(`⚠️ ${data.error || 'No se pudo procesar la confirmación'}`);
+      }
+    })
+    .catch(err => {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> <span>Confirmar Asistencia</span>';
+      }
+      console.warn('ℹ️ Servidor en segundo plano o modo local:', err.message);
+      if (attending) {
+        guestList.push(guestData);
+        localStorage.setItem("cumpleanos_guests", JSON.stringify(guestList));
+        renderGuestList();
+        form.style.display = "none";
+        showVIPTicket(guestData);
+        triggerConfetti();
+        showToast("🎉 ¡Confirmación registrada! Tu Pase VIP está listo.");
+      } else {
+        form.style.display = "none";
+        showToast("💌 ¡Muchas gracias por avisarnos!");
+      }
+    });
   });
-}
-
-function sendWhatsAppConfirmation(data) {
-  const phone = config.whatsappNumber ? config.whatsappNumber.replace(/[^0-9]/g, "") : "";
-
-  let waText = `✨ *CONFIRMACIÓN DE ASISTENCIA - 15 AÑOS* ✨\n`;
-  waText += `¡Hola ${config.birthdayGirl}! 💖\n\n`;
-  waText += `👤 *Invitado:* ${data.name}\n`;
-  waText += `🎟 *Confirmación:* ${data.attending ? "¡SÍ ASISTIRÉ! 🎉🪩" : "NO PODRÉ ASISTIR 😢"}\n`;
-
-  if (data.attending) {
-    waText += `🎫 *Pase:* Individual (1 persona)\n`;
-  }
-
-  waText += `📍 *Lugar:* ${config.venueName}\n`;
-  waText += `🗓 *Fecha:* Sábado, 07 de Noviembre\n`;
-  waText += `⏰ *Horario:* 21:00 a 6:00 hrs\n\n`;
-  if (data.attending) {
-    waText += `¡Nos vemos para celebrar hasta el amanecer! ✨🪩`;
-  } else {
-    waText += `¡Te deseo un cumpleaños inolvidable! 💖✨`;
-  }
-
-  const encoded = encodeURIComponent(waText);
-  let url = "";
-
-  if (phone && phone.length > 5) {
-    url = `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`;
-  } else {
-    url = `https://api.whatsapp.com/send?text=${encoded}`;
-  }
-
-  window.open(url, "_blank");
 }
 
 /* ========================================================
