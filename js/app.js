@@ -307,13 +307,15 @@ function initRSVPForm() {
     // Si confirma que SÍ asistirá, se registra en Neon PostgreSQL.
     // Si marca que NO asistirá, NO se registra nada en la base de datos (lista 100% limpia).
     if (attending) {
+      const honeypotVal = document.getElementById("b_website") ? document.getElementById("b_website").value : "";
       fetch(`${API_BASE}/api/rsvp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre: guestData.name,
           telefono: phone,
-          attending: true
+          attending: true,
+          b_website: honeypotVal
         })
       })
       .then(res => res.json())
@@ -926,6 +928,16 @@ function renderGuestList() {
   }
 }
 
+// Sanitizar contra CSV Formula Injection (Excel DDE)
+function sanitizeCSVCell(str) {
+  if (!str) return '""';
+  let s = String(str).replace(/"/g, '""');
+  if (/^[=\+\-@\t\r]/.test(s)) {
+    s = "'" + s;
+  }
+  return `"${s}"`;
+}
+
 function exportGuestListToCSV() {
   const listToExport = neonGuestsList.length > 0 ? neonGuestsList : guestList;
   if (listToExport.length === 0) {
@@ -938,11 +950,11 @@ function exportGuestListToCSV() {
 
   listToExport.forEach((g) => {
     const row = [
-      `"${g.nombre || g.name}"`,
-      `"${g.telefono || g.phone}"`,
+      sanitizeCSVCell(g.nombre || g.name),
+      sanitizeCSVCell(g.telefono || g.phone),
       g.recordatorio_enviado ? "Enviado" : "Pendiente",
-      g.fecha_recordatorio || "N/A",
-      g.fecha_registro || g.date || "N/A"
+      sanitizeCSVCell(g.fecha_recordatorio || "N/A"),
+      sanitizeCSVCell(g.fecha_registro || g.date || "N/A")
     ];
     csvContent += row.join(",") + "\r\n";
   });

@@ -142,6 +142,12 @@
       <p class="section-subtitle">POR FAVOR CONFIRMA TU LUGAR</p>
 
       <form id="rsvp-form">
+        <!-- Honeypot anti-spam trap (invisible para humanos, detectable para bots) -->
+        <div style="opacity: 0; position: absolute; top: 0; left: 0; height: 0; width: 0; z-index: -1; overflow: hidden;" aria-hidden="true">
+          <label for="b_website">No completar si eres humano</label>
+          <input type="text" id="b_website" name="b_website" tabindex="-1" autocomplete="off" value="">
+        </div>
+
         <!-- Nombre -->
         <div class="form-group">
           <label for="guest-first-name">Nombre <span class="req">*</span></label>

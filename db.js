@@ -20,11 +20,14 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('sslmode=requi
   process.env.DATABASE_URL += (process.env.DATABASE_URL.includes('?') ? '&' : '?') + 'sslmode=verify-full';
 }
 
-const NEON_CONNECTION_STRING = 'postgresql://neondb_owner:npg_fHcj1Z8QSxCh@ep-crimson-breeze-b5y4whea-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=verify-full';
-
-let rawConnectionString = (process.env.DATABASE_URL && process.env.DATABASE_URL.trim() !== '')
+const rawConnectionString = (process.env.DATABASE_URL && process.env.DATABASE_URL.trim() !== '')
   ? process.env.DATABASE_URL.trim()
-  : NEON_CONNECTION_STRING;
+  : null;
+
+if (!rawConnectionString) {
+  console.error('❌ [DB Error Fatal] La variable de entorno DATABASE_URL no está configurada.');
+  throw new Error('DATABASE_URL environment variable is required.');
+}
 
 // Ajuste automático de SSL para Neon: reemplaza sslmode=require o agrega sslmode=verify-full
 // para eliminar de raíz el warning de pg y forzar verificación estricta de certificados en producción

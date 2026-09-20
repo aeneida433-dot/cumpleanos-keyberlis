@@ -11,6 +11,19 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+
+// Comparación segura en tiempo constante para mitigar timing attacks
+function safeCompare(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 if (fs.existsSync('/etc/secrets/.env')) {
   require('dotenv').config({ path: '/etc/secrets/.env', override: true });
@@ -77,8 +90,45 @@ process.on('uncaughtException', (err) => {
 
 // Middlewares
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Rate Limiter en memoria (Sliding Window) para POST /api/rsvp: máx 5 registros por IP cada 15 minutos
+const rsvpRateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const MAX_RSVP_PER_WINDOW = 5;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, timestamps] of rsvpRateLimitMap.entries()) {
+    const valid = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+    if (valid.length === 0) {
+      rsvpRateLimitMap.delete(ip);
+    } else {
+      rsvpRateLimitMap.set(ip, valid);
+    }
+  }
+}, 10 * 60 * 1000);
+
+function checkRsvpRateLimit(req, res, next) {
+  if (process.env.NODE_ENV === 'test') return next();
+
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const timestamps = (rsvpRateLimitMap.get(ip) || []).filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+
+  if (timestamps.length >= MAX_RSVP_PER_WINDOW) {
+    console.warn(`⚠️ [Rate Limit] Bloqueada solicitud repetida a /api/rsvp desde IP: ${ip}`);
+    return res.status(429).json({
+      success: false,
+      error: 'Has enviado demasiadas confirmaciones en poco tiempo. Por favor espera unos minutos.'
+    });
+  }
+
+  timestamps.push(now);
+  rsvpRateLimitMap.set(ip, timestamps);
+  next();
+}
 
 // Prevenir caché obsoleto en navegadores para código JS y HTML
 app.use((req, res, next) => {
@@ -93,8 +143,42 @@ app.get('/admin.html', (req, res) => {
   res.redirect('/admin/dashboard');
 });
 
-// Servir archivos estáticos del frontend (HTML, CSS, JS, imágenes)
-app.use(express.static(path.join(__dirname)));
+// Servir ÚNICAMENTE los directorios públicos del frontend (CSS, JS cliente, Assets)
+app.use('/css', express.static(path.join(__dirname, 'css')));
+app.use('/js', express.static(path.join(__dirname, 'js')));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
+
+// Servir la página principal en la raíz
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/index.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Bloqueo explícito de seguridad para cualquier intento de acceso a archivos sensibles o de backend
+app.use((req, res, next) => {
+  const sensitivePatterns = [
+    /^\/\.baileys_auth/i,
+    /^\/\.wwebjs/i,
+    /^\/\.env/i,
+    /^\/lib\//i,
+    /^\/tests\//i,
+    /^\/docs\//i,
+    /^\/scratch\//i,
+    /\.sql$/i,
+    /\.json$/i,
+    /\.md$/i,
+    /\.lock$/i,
+    /^\/[^/]+\.js$/i // Cualquier script JS en la raíz (server.js, db.js, whatsapp.js, cron.js)
+  ];
+
+  if (sensitivePatterns.some(pattern => pattern.test(req.path))) {
+    return res.status(404).send('Not Found');
+  }
+  next();
+});
 
 // ========================================================
 // 0. PANTALLA DE ADMINISTRACIÓN PROTEGIDA: GET /admin/dashboard
@@ -108,7 +192,7 @@ app.post('/api/admin/verify-key', (req, res) => {
   const { key } = req.body;
   const expectedKey = process.env.ADMIN_DASHBOARD_KEY || 'key27102011';
 
-  if (key === expectedKey || key === 'key27102011') {
+  if (safeCompare(key, expectedKey) || safeCompare(key, 'key27102011')) {
     return res.status(200).json({ success: true, message: 'Acceso concedido al dashboard.' });
   }
 
@@ -132,9 +216,19 @@ app.get('/ping', (req, res) => {
 // ========================================================
 // 2. ENDPOINT DE REGISTRO: POST /api/rsvp
 // ========================================================
-app.post('/api/rsvp', async (req, res) => {
+app.post('/api/rsvp', checkRsvpRateLimit, async (req, res) => {
   try {
-    const { nombre, telefono, attending } = req.body;
+    const { nombre, telefono, attending, b_website } = req.body;
+
+    // Protección Honeypot: Si un bot llenó el campo trampa, responder éxito simulado y descartar
+    if (b_website && typeof b_website === 'string' && b_website.trim() !== '') {
+      console.warn(`🤖 [Honeypot Triggered] Solicitud de bot detectada y neutralizada desde IP: ${req.ip || 'desconocida'}`);
+      return res.status(200).json({
+        success: true,
+        saved: true,
+        message: 'Confirmación registrada exitosamente'
+      });
+    }
 
     // Si el invitado marca que NO asistirá, no se crea nada en Neon
     if (attending === false || attending === 'false') {
@@ -154,7 +248,7 @@ app.post('/api/rsvp', async (req, res) => {
       });
     }
 
-    const cleanName = nombre.trim().slice(0, 150);
+    const cleanName = nombre.trim().slice(0, 100);
 
     // Validación y normalización estricta del teléfono (Argentina +54 9, 13 dígitos)
     const phoneResult = normalizePhone(telefono);
@@ -195,7 +289,7 @@ app.post('/api/rsvp', async (req, res) => {
   }
 });
 
-// Función de autorización para panel administrativo general
+// Función de autorización para panel administrativo general (timing-safe)
 function isAuthorized(req) {
   const adminKey = req.headers['x-admin-key'] || req.query.key;
   if (!adminKey || typeof adminKey !== 'string' || adminKey.trim() === '') {
@@ -205,11 +299,11 @@ function isAuthorized(req) {
   const expectedKey = process.env.ADMIN_KEY || 'clave_admin_keyberlis_2710';
   const dashboardKey = process.env.ADMIN_DASHBOARD_KEY || 'key27102011';
   return (
-    cleanKey === expectedKey ||
-    cleanKey === dashboardKey ||
-    cleanKey === 'key27102011' ||
-    cleanKey === 'keyberlis15' ||
-    cleanKey === 'cumpleanos2710'
+    safeCompare(cleanKey, expectedKey) ||
+    safeCompare(cleanKey, dashboardKey) ||
+    safeCompare(cleanKey, 'key27102011') ||
+    safeCompare(cleanKey, 'keyberlis15') ||
+    safeCompare(cleanKey, 'cumpleanos2710')
   );
 }
 

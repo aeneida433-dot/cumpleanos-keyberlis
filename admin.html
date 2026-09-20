@@ -730,7 +730,7 @@
           <tr>
             <td style="color: var(--gold-light); font-weight: 600;">#${inv.id}</td>
             <td style="font-weight: 600;">${escapeHTML(inv.nombre)}</td>
-            <td><code style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px;">${inv.telefono}</code></td>
+            <td><code style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px;">${escapeHTML(inv.telefono)}</code></td>
             <td>${statusTag}</td>
             <td style="color: var(--text-muted);">${fecha}</td>
           </tr>
@@ -747,67 +747,15 @@
       renderTable(filtered);
     });
 
-    // Estado de WhatsApp
-    async function checkWhatsAppStatus() {
-      try {
-        const res = await fetch('/api/whatsapp/status');
-        const data = await res.json();
-        const badge = document.getElementById('wa-badge');
-        const qrBox = document.getElementById('qr-container');
-        const qrImg = document.getElementById('qr-image');
-
-        if (data.ready) {
-          badge.className = 'status-badge badge-connected';
-          badge.innerHTML = '<i class="fa-solid fa-circle-check"></i> WhatsApp Conectado y Listo';
-          qrBox.style.display = 'none';
-        } else if (data.hasQR && data.qrDataURL) {
-          badge.className = 'status-badge badge-waiting';
-          badge.innerHTML = '<i class="fa-solid fa-qrcode"></i> Escanear Código QR';
-          qrImg.src = data.qrDataURL;
-          qrBox.style.display = 'block';
-        } else if (data.loading) {
-          badge.className = 'status-badge badge-waiting';
-          badge.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sincronizando chats (${data.loading.percent}%)...`;
-          qrBox.style.display = 'none';
-        } else {
-          badge.className = 'status-badge badge-disconnected';
-          badge.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> WhatsApp Desconectado';
-          qrBox.style.display = 'none';
-        }
-      } catch (err) {
-        console.error('Error al verificar WhatsApp:', err);
+    // Sanitizar contra CSV Formula Injection (Excel DDE)
+    function sanitizeCSVCell(str) {
+      if (!str) return '""';
+      let s = String(str).replace(/"/g, '""');
+      if (/^[=\+\-@\t\r]/.test(s)) {
+        s = "'" + s;
       }
+      return `"${s}"`;
     }
-
-    // Forzar Recordatorios
-    document.getElementById('force-reminders-btn').addEventListener('click', async () => {
-      if (!confirm('¿Deseas disparar ahora el envío masivo de recordatorios por WhatsApp a todos los invitados pendientes?')) {
-        return;
-      }
-
-      const btn = document.getElementById('force-reminders-btn');
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Iniciando...';
-
-      try {
-        const res = await fetch('/api/admin/forzar-recordatorio?token=cumpleanos2710', {
-          method: 'POST'
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-          alert('¡Proceso iniciado! Los recordatorios se están despachando en segundo plano con protección anti-ban.');
-        } else {
-          alert('Error al forzar recordatorios: ' + (data.error || 'Acceso denegado'));
-        }
-      } catch (err) {
-        alert('Error de conexión con el servidor.');
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Forzar Envío a Pendientes';
-        await loadDashboardData();
-      }
-    });
 
     // Exportar CSV
     document.getElementById('export-btn').addEventListener('click', () => {
@@ -817,7 +765,7 @@
       }
       let csv = 'ID,Nombre,Telefono,Recordatorio Enviado,Fecha Registro\n';
       guestsData.forEach(g => {
-        csv += `${g.id},"${g.nombre.replace(/"/g, '""')}",${g.telefono},${g.recordatorio_enviado ? 'SI' : 'NO'},${g.fecha_registro}\n`;
+        csv += `${g.id},${sanitizeCSVCell(g.nombre)},${sanitizeCSVCell(g.telefono)},${g.recordatorio_enviado ? 'SI' : 'NO'},${g.fecha_registro}\n`;
       });
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

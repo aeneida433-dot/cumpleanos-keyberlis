@@ -140,6 +140,17 @@ async function runSecuritySuite() {
         const hasMessageTextarea = indexHtmlContent.includes('id="guest-message"');
         assert(!hasSongInput && !hasMessageTextarea, 'Formulario RSVP simplificado: campos de canción y mensaje removidos');
 
+        // 14. Aserción de Blindaje Estático: db.js y .baileys_auth deben retornar 404
+        const dbJsRes = await request('GET', '/db.js');
+        assert(dbJsRes.status === 404, 'GET /db.js está aislado y retorna 404 Not Found (no expone backend)');
+
+        const baileysRes = await request('GET', '/.baileys_auth/creds.json');
+        assert(baileysRes.status === 404, 'GET /.baileys_auth/creds.json está bloqueado y retorna 404 Not Found');
+
+        // 15. Aserción de Trampa Honeypot en el formulario RSVP
+        const hasHoneypot = indexHtmlContent.includes('id="b_website"');
+        assert(hasHoneypot, 'Formulario RSVP incluye campo trampa Honeypot anti-bots (b_website)');
+
         server.close(() => {
           resolveAll({ passed, failed });
         });
