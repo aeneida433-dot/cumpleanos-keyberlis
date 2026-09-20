@@ -761,9 +761,9 @@ function initAdminModal() {
 
   if (triggerBtn) {
     triggerBtn.addEventListener("click", () => {
-      if (!confirm("¿Deseas enviar el recordatorio de WhatsApp a todos los confirmados pendientes en Neon?")) return;
+      if (!confirm("¿Deseas iniciar el envío masivo de recordatorios de WhatsApp a los pendientes en Neon?")) return;
       triggerBtn.disabled = true;
-      triggerBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando recordatorios...';
+      triggerBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Iniciando...';
 
       fetch(`${API_BASE}/api/admin/enviar-recordatorios`, {
         method: 'POST',
@@ -773,10 +773,10 @@ function initAdminModal() {
         .then(data => {
           triggerBtn.disabled = false;
           triggerBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>Enviar Recordatorios a Pendientes</span>';
-          if (data.success && data.resultado) {
-            showToast(`🏁 Envíos finalizados: ${data.resultado.enviados} enviados, ${data.resultado.fallidos} fallidos`);
+          if (data.success) {
+            showToast(`🚀 ${data.message || 'Envío masivo iniciado en segundo plano de forma segura.'}`);
           } else {
-            showToast(`⚠️ ${data.error || 'No se pudo completar el envío'}`);
+            showToast(`⚠️ ${data.error || 'No se pudo iniciar el envío'}`);
           }
           fetchNeonGuests();
         })

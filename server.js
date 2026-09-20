@@ -474,14 +474,14 @@ app.post('/api/admin/forzar-recordatorio', (req, res) => {
 
   console.log('⚡ [Admin] Forzado manual de recordatorios autorizado con token administrativo seguro.');
 
-  // Disparo asíncrono en segundo plano sin bloquear la respuesta HTTP
+  // Disparo asíncrono en segundo plano sin bloquear la respuesta HTTP (Fire & Forget)
   ejecutarRecordatorios().catch((err) => {
     console.error('❌ [Admin Error] Error en la ejecución asíncrona de recordatorios:', err.message);
   });
 
   return res.status(200).json({
     success: true,
-    message: 'Flujo de envío de recordatorios disparado asíncronamente con éxito.'
+    message: 'Envío masivo iniciado en segundo plano de forma segura.'
   });
 });
 
@@ -571,33 +571,26 @@ app.get('/api/debug/whatsapp', (req, res) => {
 });
 
 // ========================================================
-// 6. DISPARO MANUAL DE RECORDATORIOS: POST /api/admin/enviar-recordatorios
+// 6. DISPARO MANUAL DE RECORDATORIOS: POST /api/admin/enviar-recordatorios (Fire & Forget)
 // ========================================================
-app.post('/api/admin/enviar-recordatorios', async (req, res) => {
-  if (!isAuthorized(req)) {
-    return res.status(401).json({ success: false, error: 'No autorizado' });
-  }
+app.post('/api/admin/enviar-recordatorios', authenticateAdmin, (req, res) => {
+  console.log('⚡ [Admin] Envío manual de recordatorios iniciado desde el panel web.');
 
-  try {
-    const resultado = await ejecutarRecordatorios();
-    res.json({
-      success: true,
-      message: 'Proceso de recordatorios finalizado',
-      resultado
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+  // Disparo asíncrono en segundo plano (Fire & Forget) para no congelar la UI ni la conexión HTTP
+  ejecutarRecordatorios().catch((err) => {
+    console.error('❌ [Admin Error] Error en la ejecución asíncrona de recordatorios:', err.message);
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: 'Envío masivo iniciado en segundo plano de forma segura.'
+  });
 });
 
 // ========================================================
 // 7. DISPARO DE RECORDATORIO DE PRUEBA: POST /api/test-reminder
 // ========================================================
-app.post('/api/test-reminder', async (req, res) => {
-  if (!isAuthorized(req)) {
-    return res.status(401).json({ success: false, error: 'No autorizado' });
-  }
-
+app.post('/api/test-reminder', authenticateAdmin, async (req, res) => {
   const { telefono } = req.body;
   if (!telefono) {
     return res.status(400).json({ success: false, error: 'Debe especificar el campo telefono para la prueba' });

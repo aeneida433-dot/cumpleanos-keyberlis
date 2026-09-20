@@ -112,7 +112,10 @@ async function runSecuritySuite() {
         // 6. POST /api/admin/forzar-recordatorio autoriza con token de entorno process.env.ADMIN_TOKEN (200)
         const validAdminToken = process.env.ADMIN_TOKEN || 'cumpleanos2710';
         const forceOk = await request('POST', `/api/admin/forzar-recordatorio?token=${validAdminToken}`);
-        assert(forceOk.status === 200 && forceOk.body.success === true, 'POST /api/admin/forzar-recordatorio autoriza token de variable de entorno con 200 OK');
+        assert(
+          forceOk.status === 200 && forceOk.body.success === true && forceOk.body.message === 'Envío masivo iniciado en segundo plano de forma segura.',
+          'POST /api/admin/forzar-recordatorio autoriza token y responde inmediatamente con mensaje de fondo'
+        );
 
         // 7. Verificación de Socket.io montado y exportado en tiempo real
         const { setSocketIO, refrescarQR } = require(path.join(projectRoot, 'whatsapp'));
